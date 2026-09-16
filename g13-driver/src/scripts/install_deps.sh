@@ -18,7 +18,7 @@ PKG_DEBIAN="build-essential cmake libusb-1.0-0-dev libgtk-3-dev libappindicator3
 
 # FEDORA (RHEL, CentOS, Nobara)
 # Explicitly listing 'make' here.
-PKG_FEDORA="make automake cmake gcc gcc-c++ kernel-devel libusb1-devel gtk3-devel libappindicator-gtk3-devel maven java-17-openjdk-devel"
+PKG_FEDORA="make automake cmake gcc gcc-c++ kernel-devel libusb1-devel gtk3-devel libappindicator-gtk3-devel maven java-latest-openjdk"
 
 # OPENSUSE (Tumbleweed, Leap)
 # Explicitly listing 'make' here.
