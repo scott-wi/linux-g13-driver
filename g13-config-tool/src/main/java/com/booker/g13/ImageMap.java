@@ -35,7 +35,7 @@ public class ImageMap extends JLabel {
 	private final Color mouseoverColor = new Color(255, 0, 0, 128); // Semi-transparent red for hovered key.
     
     /** A set of keycodes for the M1-M3 and MR keys, which are used to switch binding profiles. */
-    private static final Set<Integer> BINDING_SWITCH_KEYS = Set.of(25, 26, 27, 28);
+    private static final Set<Integer> BINDING_SWITCH_KEYS = Set.of(29, 30, 31, 32);
 
 	private Key selected = null; // The currently clicked/selected key.
 	private Key mouseover = null; // The key currently under the mouse cursor.

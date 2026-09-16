@@ -5,6 +5,9 @@
 #include <pwd.h>
 #include <iostream>
 #include <limits.h>
+#include <fstream>
+#include <regex>
+#include <filesystem>
 
 // Helper to check if a directory exists
 static bool dirExists(const std::string& path) {
@@ -68,4 +71,17 @@ std::string ConfigPath::getFifoPath() {
     }
     // Fallback to tmp
     return "/tmp/g13-lcd";
+}
+std::string ConfigPath::getActiveProfileDir() {
+    std::string root = getConfigDir();
+    std::ifstream marker(root + "/active-profile");
+    std::string id;
+    std::getline(marker, id);
+    static const std::regex uuid("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    if (!std::regex_match(id, uuid)) return root;
+    std::string directory = root + "/profiles/" + id;
+    if (!std::filesystem::is_regular_file(directory + "/profile.properties")) return root;
+    for (int i = 0; i < 4; ++i)
+        if (!std::filesystem::is_regular_file(directory + "/bindings-" + std::to_string(i) + ".properties")) return root;
+    return directory;
 }

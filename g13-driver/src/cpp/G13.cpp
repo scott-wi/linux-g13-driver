@@ -22,6 +22,7 @@
 #include "G13Action.h"
 #include "PassThroughAction.h"
 #include "MacroAction.h"
+#include "ChordAction.h"
 #include "Output.h"
 #include "Font.h"
 #include "ConfigPath.h" // NEW: Include Helper
@@ -108,12 +109,17 @@ void G13::stop() {
 
 // --- Live-Reload Implementation ---
 void G13::check_for_config_update() {
-    // NEW: Use ConfigPath helper
-    std::string filename = ConfigPath::getBindingPath(bindings);
+    const std::string selected = ConfigPath::getActiveProfileDir();
+    if (selected != profile_directory) {
+        bindings = 0;
+        loadBindings();
+        return;
+    }
+    std::string filename = profile_directory + "/bindings-" + std::to_string(bindings) + ".properties";
     
     struct stat file_stat;
     if (stat(filename.c_str(), &file_stat) == 0) {
-        if (last_config_mtime != 0 && file_stat.st_mtime > last_config_mtime) {
+        if (file_stat.st_mtime != last_config_mtime || file_stat.st_mtim.tv_nsec != last_config_nsec) {
             syslog(LOG_INFO, "Config file change detected. Reloading...");
             loadBindings();
         }
@@ -122,7 +128,7 @@ void G13::check_for_config_update() {
 
 std::unique_ptr<Macro> G13::loadMacro(int num) {
     // NEW: Use ConfigPath helper
-    std::string filename = ConfigPath::getMacroPath(num);
+    std::string filename = profile_directory + "/macro-" + std::to_string(num) + ".properties";
     std::ifstream file(filename);
 
     if (!file.is_open()) return nullptr;
@@ -189,6 +195,17 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
                         }
                     }
                 }
+                else if (type == "c") {
+                    std::vector<int> codes;
+                    std::string token;
+                    while (std::getline(ss, token, ',')) {
+                        int code = std::stoi(token);
+                        if (code < 1 || code > 255) throw std::invalid_argument("Invalid chord key");
+                        codes.push_back(code);
+                    }
+                    if (!codes.empty() && gKey >= 0 && gKey < G13_NUM_KEYS)
+                        actions[gKey] = std::make_unique<ChordAction>(std::move(codes));
+                }
                 else if (type == "m") { 
                     std::string macroId_str, repeats_str;
                     if (!std::getline(ss, macroId_str, ',') || !std::getline(ss, repeats_str, ',')) continue;
@@ -209,13 +226,21 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
 }
 
 void G13::loadBindings() {
-    // NEW: Use ConfigPath helper
-    std::string filename = ConfigPath::getBindingPath(bindings);
+    // Snapshot the directory so the bank and all referenced macros come from one profile.
+    profile_directory = ConfigPath::getActiveProfileDir();
+    ConfigPath::ensureConfigDirExists();
+    std::string filename = profile_directory + "/bindings-" + std::to_string(bindings) + ".properties";
+    // Missing entries must become unassigned rather than retain the preceding bank's actions.
+    for (auto& action : actions) {
+        if (action) action->set(0);
+        action = std::make_unique<G13Action>();
+    }
 
     // Update timestamp for Live-Reload
     struct stat file_stat;
     if (stat(filename.c_str(), &file_stat) == 0) {
         last_config_mtime = file_stat.st_mtime;
+        last_config_nsec = file_stat.st_mtim.tv_nsec;
     }
 
     std::ifstream file(filename);
@@ -346,9 +371,9 @@ void G13::parse_key(int key, unsigned char *byte) {
     int pressed = actual_byte & mask;
 
     switch (key) {
-    case 25: case 26: case 27: case 28:
-        if (pressed) {
-            bindings = key - 25; 
+    case G13_KEY_M1: case G13_KEY_M2: case G13_KEY_M3: case G13_KEY_MR:
+        if (pressed && bindings != key - G13_KEY_M1) {
+            bindings = key - G13_KEY_M1;
             loadBindings();
         }
         return;

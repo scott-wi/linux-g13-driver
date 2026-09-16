@@ -1,0 +1,98 @@
+#include "ConfigPath.h"
+#include "MacroAction.h"
+#include "ChordAction.h"
+#include <filesystem>
+#include <fstream>
+#include <cassert>
+#include <mutex>
+#include <tuple>
+#include <iostream>
+#include <map>
+#include <csignal>
+#include <libusb-1.0/libusb.h>
+#define private public
+#include "G13.h"
+#undef private
+volatile sig_atomic_t daemon_keep_running = 1;
+// No device is opened; control transfers are captured as no-ops.
+extern "C" int libusb_open(libusb_device*, libusb_device_handle**) { return LIBUSB_ERROR_NO_DEVICE; }
+extern "C" int libusb_control_transfer(libusb_device_handle*, uint8_t, uint8_t, uint16_t, uint16_t, unsigned char*, uint16_t, unsigned int) { return 0; }
+
+
+std::mutex eventsMutex;
+std::vector<std::tuple<int,int,int>> events;
+void UInput::send_event(int type, int code, int value) {
+    std::lock_guard<std::mutex> lock(eventsMutex);
+    events.emplace_back(type, code, value);
+}
+static bool contains(int code, int value) {
+    std::lock_guard<std::mutex> lock(eventsMutex);
+    for (auto [type, c, v] : events) if (type == EV_KEY && c == code && v == value) return true;
+    return false;
+}
+int main(int argc, char** argv) {
+    assert(argc == 2);
+    setenv("XDG_CONFIG_HOME", argv[1], 1);
+    std::string root = std::string(argv[1]) + "/g13";
+    std::filesystem::create_directories(root);
+    assert(ConfigPath::getActiveProfileDir() == root);
+    std::ofstream(root + "/active-profile") << "../escape\n";
+    assert(ConfigPath::getActiveProfileDir() == root);
+    std::string id = "12345678-1234-1234-1234-123456789abc";
+    std::string dir = root + "/profiles/" + id;
+    std::filesystem::create_directories(dir);
+    std::ofstream(root + "/active-profile") << id << '\n';
+    std::ofstream(dir + "/profile.properties") << "name=Test\n";
+    assert(ConfigPath::getActiveProfileDir() == root); // incomplete imports are never loaded
+    for (int i = 0; i < 4; ++i) std::ofstream(dir + "/bindings-" + std::to_string(i) + ".properties") << "color=255,255,255\n";
+    assert(ConfigPath::getActiveProfileDir() == dir);
+    {
+        G13 device(nullptr);
+        std::ofstream(dir + "/bindings-0.properties") << "G0=p,k.31\n";
+        device.loadBindings();
+        device.actions[0]->set(1);
+        assert(contains(31, 1));
+        unsigned char report[5] = {};
+        report[G13_KEY_M2 / 8] = 1 << (G13_KEY_M2 % 8);
+        device.parse_key(G13_KEY_M2, report);
+        assert(device.bindings == 1);
+        assert(contains(31, 0));
+        {
+            std::lock_guard<std::mutex> lock(eventsMutex);
+            events.clear();
+        }
+        device.actions[0]->set(1);
+        assert(!contains(31, 1)); // absent entry must not survive bank change
+        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
+        std::ofstream(root + "/active-profile") << "default\n";
+        device.check_for_config_update();
+        assert(device.bindings == 0 && device.profile_directory == root);
+        device.actions[0]->set(1);
+        assert(contains(32, 1));
+        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.33\n";
+        device.check_for_config_update();
+        assert(contains(32, 0));
+        device.actions[0]->set(1);
+        assert(contains(33, 1));
+    }
+    {
+        ChordAction chord({42, 17});
+        chord.set(1);
+        assert(contains(42, 1) && contains(17, 1));
+        assert(!contains(17, 0)); // hold until physical release or destruction
+    }
+    assert(contains(17, 0) && contains(42, 0));
+    {
+        MacroAction macro("kd.18,d.60000,ku.18");
+        macro.set(1);
+        for (int i = 0; i < 200 && !contains(18, 1); ++i) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        assert(contains(18, 1));
+    } // must interrupt long delay and balance pressed key
+    assert(contains(18, 0));
+    for (int i = 0; i < 200; ++i) {
+        MacroAction macro("kd.30,d.1,ku.30");
+        macro.setRepeats(1);
+        macro.set(1);
+    } // exercises stop-before-worker-start race
+    std::cout << "Native bank mapping, profile reload, chord lifetime and macro cancellation tests passed.\n";
+}
