@@ -23,8 +23,7 @@ You need to install the following packages via your package manager:
 * `libusb-1.0-0` (on some distros named `libusb-1.0-0-dev` or `libusb1-devel`)
 * `libappindicator-gtk3` (or similar)
 * `Java 17` or higher and `maven`
-* `Python 3.10` or higher (release tooling)
-* `python-psutil` (for the monitor script)
+* Optional: `python-psutil` (only for the existing LCD monitor example)
 
 ### Automated Dependency Installation
 
@@ -50,7 +49,7 @@ To enable or restart the user service as part of user deployment, use
 `make install-user DEPLOY_FLAGS=--activate`.
 
 An extracted release works without the source checkout: run
-`python3 install.py install --scope user --activate` from its directory.
+`bash install.sh install --scope user --activate` from its directory.
 The installer preserves the previous release for rollback and leaves user bindings
 and macros intact. System-wide installation registers a user service; each desktop
 user enables/restarts it separately.

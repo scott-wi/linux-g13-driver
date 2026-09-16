@@ -10,19 +10,19 @@ set -e # Exit immediately if a command exits with a non-zero status.
 
 # ARCH LINUX (CachyOS, Manjaro, EndeavourOS)
 # 'base-devel' includes: make, gcc, automake, etc.
-PKG_ARCH="base-devel cmake libusb gtk3 libappindicator-gtk3 maven jdk17-openjdk python"
+PKG_ARCH="base-devel cmake libusb gtk3 libappindicator-gtk3 maven jdk17-openjdk"
 
 # DEBIAN / UBUNTU (Pop!_OS, Mint, Kali)
 # 'build-essential' includes: make, gcc, g++, etc.
-PKG_DEBIAN="build-essential cmake libusb-1.0-0-dev libgtk-3-dev libappindicator3-dev maven openjdk-17-jdk python3"
+PKG_DEBIAN="build-essential cmake libusb-1.0-0-dev libgtk-3-dev libappindicator3-dev maven openjdk-17-jdk"
 
 # FEDORA (RHEL, CentOS, Nobara)
 # Explicitly listing 'make' here.
-PKG_FEDORA="make automake cmake gcc gcc-c++ kernel-devel libusb1-devel gtk3-devel libappindicator-gtk3-devel maven java-latest-openjdk python3"
+PKG_FEDORA="make automake cmake gcc gcc-c++ kernel-devel libusb1-devel gtk3-devel libappindicator-gtk3-devel maven java-latest-openjdk"
 
 # OPENSUSE (Tumbleweed, Leap)
 # Explicitly listing 'make' here.
-PKG_SUSE="make cmake gcc-c++ libusb-1_0-devel gtk3-devel libappindicator3-devel maven java-17-openjdk-devel python3"
+PKG_SUSE="make cmake gcc-c++ libusb-1_0-devel gtk3-devel libappindicator3-devel maven java-17-openjdk-devel"
 
 
 echo "--- Detecting Package Manager ---"
@@ -62,7 +62,6 @@ else
     echo "  4. GTK 3 (Development Headers)"
     echo "  5. AppIndicator3 (Development Headers)"
     echo "  6. Java JDK 17 & Maven"
-    echo "  7. Python 3.10+ (release tooling)"
     echo "================================================================="
     read -p "Press ENTER to continue anyway (if you have installed them manually)..."
 fi

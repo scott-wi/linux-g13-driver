@@ -18,11 +18,13 @@ make test
 
 This builds the C++ driver and Java GUI and assembles a versioned release plus archive in `dist/`. Building does not install packages; `make dependencies` is explicit. Root targets delegate to `g13-driver/src/Makefile`. See [docs/releases.md](docs/releases.md) for deployment, migration, rollback, and DESTDIR staging.
 
-C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling uses Python 3.10+. The all target skips Java tests. `make test` runs deployment integration tests in temporary directories with no service/device access; distinguish those checks from actual hardware validation.
+C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling and deployment tests use Bash and standard GNU/Linux utilities; no additional language runtime is required. The all target skips Java tests. `make test` runs deployment integration tests in temporary directories with no service/device access; distinguish those checks from actual hardware validation.
 
 Do not commit generated `build/`, `target/`, `.stage/`, or `dist/` artifacts. Release launchers resolve their own location. Launching the GUI still writes real user configuration unless `XDG_CONFIG_HOME` is isolated. Use DESTDIR for deployment checks; even `--activate` is suppressed in staged installs.
 
 ## Code conventions and contracts
+
+- Add dependencies only when necessary AND explicitly approved by the user beforehand. Reuse existing dependencies and standard Linux utilities; convenience alone is not justification.
 
 - Keep USB/input handling in `g13-driver/src/cpp`; keep Swing editing and persistence in `g13-config-tool/src/main/java/com/booker/g13`.
 - Configuration is a shared C++/Java contract. Update both readers/writers when changing it and preserve existing users' bindings and macros.

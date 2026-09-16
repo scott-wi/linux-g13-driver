@@ -2,7 +2,8 @@
 
 The build produces a self-contained release directory and `.tar.gz` archive in
 `dist/`. Each release contains the native driver, Java GUI, relocatable launchers,
-service template, device rules, installer, and a manifest with file checksums.
+service template, device rules, shell installer, plain-text metadata (`release.meta`),
+and file checksums (`SHA256SUMS`). Metadata is parsed as data, never executed.
 The directory name includes the app version, build distro/version, architecture,
 and a content digest. `dist/latest` points to the most recently built release.
 
@@ -17,9 +18,12 @@ make test            # Temporary-directory deployment tests; no device access
 ```
 
 Building never installs system packages or starts services. `make -j all` also
-works: release assembly waits for both builds. Python 3.10+ is required for the
-release tooling; runtime deployment needs Python 3.10+, Java 17+, and the native
-libraries linked by the driver (libusb, GTK3, AppIndicator and C++ runtime).
+works: release assembly waits for both builds. Release assembly, installation, and
+tests use Bash and standard GNU/Linux utilities (coreutils, find, grep, sed, tar/gzip).
+No Python, jq, extra runtime, or test framework is required. Running the app still
+needs Java 17+ and the native libraries linked by the driver (libusb, GTK3,
+AppIndicator and C++ runtime). The existing optional Python LCD monitor example
+is independent of the build and release workflow.
 Use your distro's packages; native archives are specific to their build platform,
 not universal Linux binaries. The installer checks distro/version and architecture
 and, for live installs, checks Java and native shared libraries before deployment.
@@ -43,9 +47,9 @@ An end user can instead extract a matching release archive, enter its directory,
 and run these commands **without the repository, make, CMake, or Maven**:
 
 ```sh
-python3 install.py install --scope user --activate
+bash install.sh install --scope user --activate
 # Or, for a system-wide installation:
-sudo python3 install.py install --scope system
+sudo bash install.sh install --scope system
 ```
 
 For system-wide installation, each desktop user activates the service separately:
@@ -83,7 +87,7 @@ A user installation does not invoke sudo. If device permissions are not already
 configured, run this once from the extracted release:
 
 ```sh
-sudo python3 install.py hardware
+sudo bash install.sh hardware
 ```
 
 This installs the udev rule and reloads rules; reconnect the G13 if needed.
@@ -106,7 +110,9 @@ Install the next extracted release with the same command. Deployment verifies th
 payload, copies it to a versioned directory, registers paths to `current`, and
 atomically switches that link only after the payload is ready. The old release
 remains under `releases/` and is recorded as `previous`. Reinstalling the same
-release preserves rollback history. Concurrent deployments share an install lock.
+release preserves rollback history. A directory lock rejects concurrent deployments
+with a retry message. Normal exits remove the lock; after a forced kill, remove
+`.deploy.lockdir` only after confirming no installer is still running.
 
 ```sh
 g13-release status --scope user

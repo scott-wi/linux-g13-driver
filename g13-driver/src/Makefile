@@ -1,6 +1,5 @@
 # Build first; installation consumes an existing release and never compiles.
 ROOT := $(abspath ../..)
-PYTHON ?= python3
 RELEASE ?= $(ROOT)/dist/latest
 DESTDIR ?=
 DEPLOY_FLAGS ?=
@@ -20,34 +19,34 @@ build-gui:
 	cd ../../g13-config-tool && mvn -B -ntp package -DskipTests
 
 release: build-driver build-gui
-	$(PYTHON) scripts/release.py
+	bash scripts/release.sh
 
 # Compatibility alias for the former staging target.
 stage: release
 
 install:
-	$(PYTHON) "$(RELEASE)/install.py" install --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
+	bash "$(RELEASE)/install.sh" install --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
 
 install-user:
-	$(PYTHON) "$(RELEASE)/install.py" install --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
+	bash "$(RELEASE)/install.sh" install --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
 
 rollback:
-	$(PYTHON) "$(RELEASE)/install.py" rollback --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
+	bash "$(RELEASE)/install.sh" rollback --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
 
 rollback-user:
-	$(PYTHON) "$(RELEASE)/install.py" rollback --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
+	bash "$(RELEASE)/install.sh" rollback --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)") $(DEPLOY_FLAGS)
 
 status:
-	$(PYTHON) "$(RELEASE)/install.py" status --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)")
+	bash "$(RELEASE)/install.sh" status --scope system $(if $(DESTDIR),--destdir "$(DESTDIR)")
 
 status-user:
-	$(PYTHON) "$(RELEASE)/install.py" status --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)")
+	bash "$(RELEASE)/install.sh" status --scope user $(if $(DESTDIR),--destdir "$(DESTDIR)")
 
 hardware:
-	$(PYTHON) "$(RELEASE)/install.py" hardware $(if $(DESTDIR),--destdir "$(DESTDIR)")
+	bash "$(RELEASE)/install.sh" hardware $(if $(DESTDIR),--destdir "$(DESTDIR)")
 
 test:
-	$(PYTHON) -m unittest discover -s tests -v
+	bash tests/test_deploy.sh
 
 clean-build:
 	$(RM) -r ../build
