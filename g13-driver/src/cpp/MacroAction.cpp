@@ -3,6 +3,8 @@
 #include <memory>
 #include <sstream>
 #include <thread>
+#include <set>
+#include <algorithm>
 #include <syslog.h> // Logging
 
 #include "MacroAction.h"
@@ -11,38 +13,29 @@
  * @brief The main loop for macro execution.
  */
 void MacroAction::execute_macro_loop() {
-    _should_stop = false;
-
-    // Case: Run Once (_repeats == 0)
-    if (_repeats == 0) {
-        for (const auto& event : _events) {
-            if (_should_stop) break; // Check interrupt
-            event->execute();
-        }
-        _is_macro_running = false;
-        return;
-    }
-
-    // Case: Repeating macros
-    int current_repeats = 0;
-    while (!_should_stop) {
+    std::set<int> held;
+    int iterations = 0;
+    do {
         for (const auto& event : _events) {
             if (_should_stop) break;
-            event->execute();
-        }
-
-        if (_should_stop) break;
-
-        // Fixed number of repeats
-        if (_repeats > 1) {
-            current_repeats++;
-            if (current_repeats >= _repeats) {
-                break;
+            if (event->delay() > 0) {
+                // Keep cancellation responsive even during a long imported delay.
+                for (int remaining = event->delay(); remaining > 0 && !_should_stop; remaining -= 5)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(std::min(remaining, 5)));
+            } else {
+                event->execute();
+                if (event->key() >= 0) {
+                    if (event->down()) held.insert(event->key());
+                    else held.erase(event->key());
+                }
             }
         }
-        // If _repeats == 1, loop continues until key_up sets _should_stop
-    }
-
+        ++iterations;
+        if (_repeats == 0 || (_repeats > 1 && iterations >= _repeats)) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    } while (!_should_stop);
+    for (int code : held) UInput::send_event(EV_KEY, code, 0);
+    if (!held.empty()) UInput::send_event(EV_SYN, SYN_REPORT, 0);
     _is_macro_running = false;
 }
 
@@ -99,14 +92,15 @@ void MacroAction::key_down() {
 
         if (_events.empty()) return;
 
-        _is_macro_running = true;
-        
+
         // Clean up previous thread if necessary (should be handled, but safe-guard)
         if (_macro_thread.joinable()) {
             _macro_thread.join();
         }
 
-        // Start new thread
+        // Reset before spawning: destruction/key-up must not race a worker reset.
+        _should_stop = false;
+        _is_macro_running = true;
         _macro_thread = std::thread(&MacroAction::execute_macro_loop, this);
     }
 }

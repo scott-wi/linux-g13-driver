@@ -2,9 +2,10 @@
 
 ## Workspace and scope
 
-- Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/worktree-build`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
+- Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/windows-profile-import`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
 - The user owns a G13. Building is authorized; installing, restarting the live service, or taking control of the device requires an explicit request for that action.
-- Current priorities: named profiles for multiple games, automatic selection from the foreground application, then a more interactive graphical UI. These are planned features, not implemented behavior. UI details remain to be discussed.
+- Fetch and push only `origin`, the private `scott-wi/linux-g13-driver` repository. Do not contact the original upstream repository.
+- Named profiles and single Logitech XML import are implemented; foreground application matching, folder import, and further graphical UI changes remain planned. See [docs/profile-import.md](docs/profile-import.md).
 - Read [docs/architecture.md](docs/architecture.md) for the current behavior and extension points.
 
 ## Build and verification
@@ -18,7 +19,7 @@ make test
 
 This builds the C++ driver and Java GUI and assembles a versioned release plus archive in `dist/`. Building does not install packages; `make dependencies` is explicit. Root targets delegate to `g13-driver/src/Makefile`. See [docs/releases.md](docs/releases.md) for deployment, migration, rollback, and DESTDIR staging.
 
-C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling and deployment tests use Bash and standard GNU/Linux utilities; no additional language runtime is required. The all target skips Java tests. `make test` runs deployment integration tests in temporary directories with no service/device access; distinguish those checks from actual hardware validation.
+C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling and deployment tests use Bash and standard GNU/Linux utilities; no additional language runtime is required. The all target skips Java tests. `make test` runs deployment integration tests, Java importer/storage/headless Swing checks, and C++ profile/action tests with mocked USB and uinput in temporary directories; distinguish those checks from actual hardware validation.
 
 Do not commit generated `build/`, `target/`, `.stage/`, or `dist/` artifacts. Release launchers resolve their own location. Launching the GUI still writes real user configuration unless `XDG_CONFIG_HOME` is isolated. Use DESTDIR for deployment checks; even `--activate` is suppressed in staged installs.
 

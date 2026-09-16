@@ -111,7 +111,7 @@ The top 4 buttons under the LCD screen select the bindings (M1-M3, MR).
 
 The driver now includes a fixed default mapping. This means the GUI is not strictly necessary if you prefer other tools. You can map the keys using software like **Input Remapper**.
 
-*(Note: The quick profile change via the four small buttons under the display only works when using the G13 GUI tool.)*
+The physical M1–MR buttons select the driver bank. Clicking them in the GUI chooses the bank to edit.
 
 ### Manually create your own Mapping Set
 
@@ -156,3 +156,7 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 ## Notes
 
 * Tested on 64-bit Arch Linux.
+
+### Windows profile import
+
+The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Select **Import Windows profile…**, review the conversion warnings, then choose **Use profile** to activate it. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.

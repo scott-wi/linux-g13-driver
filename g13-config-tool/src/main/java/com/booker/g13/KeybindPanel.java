@@ -32,7 +32,8 @@ public class KeybindPanel extends JPanel {
 	// --- UI Components for Passthrough Binding ---
 	private final JCheckBox passthroughButton = new JCheckBox("Pass Through");
 	private final JTextField passthroughText = new JTextField();
-	private int passthroughCode = 0; // The Linux keycode for the passthrough key.
+	private final ButtonGroup buttonGroup = new ButtonGroup();
+    private int passthroughCode = 0; // The Linux keycode for the passthrough key.
 	
 	// --- UI Components for Macro Binding ---
 	private final JCheckBox macroButton = new JCheckBox("Macro");
@@ -71,7 +72,7 @@ public class KeybindPanel extends JPanel {
 	private void setupUI() {
 		add(createColorPanel(), BorderLayout.NORTH);
 		
-		final ButtonGroup buttonGroup = new ButtonGroup();
+
 		buttonGroup.add(passthroughButton);
 		buttonGroup.add(macroButton);
 		
@@ -109,7 +110,7 @@ public class KeybindPanel extends JPanel {
 		passthroughText.addKeyListener(new KeyAdapter() {
 			@Override
 			public void keyReleased(KeyEvent event) {
-				if (loadingData) return;
+				if (loadingData || !passthroughButton.isSelected()) return;
 				loadingData = true; // Prevent re-triggering while updating
 				passthroughCode = JavaToLinuxKeymapping.keyEventToCCode(event);
 				passthroughText.setText(JavaToLinuxKeymapping.cKeyCodeToString(passthroughCode));
@@ -124,7 +125,10 @@ public class KeybindPanel extends JPanel {
      * and then trigger a save operation.
      */
     private void updateComponentStateAndSave() {
-        passthroughText.setEnabled(passthroughButton.isSelected());
+        boolean chord = key != null && bindings != null && bindings.getProperty("G" + key.getG13KeyCode(), "").startsWith("c,")
+                && !passthroughButton.isSelected() && !macroButton.isSelected();
+        passthroughText.setEnabled(passthroughButton.isSelected() || chord);
+        passthroughText.setEditable(passthroughButton.isSelected());
         macroSelectionBox.setEnabled(macroButton.isSelected());
         repeatsCheckBox.setEnabled(macroButton.isSelected());
         saveBindings();
@@ -199,7 +203,7 @@ public class KeybindPanel extends JPanel {
 		
 		// Get the binding string for the selected key, e.g., "p,k.1" or "m,5,1".
 		final String propKey = "G" + key.getG13KeyCode();
-		final String val = bindings.getProperty(propKey, "p,k.1"); // Default to 'ESC' if unassigned.
+		final String val = bindings.getProperty(propKey, ""); // Missing entries stay unassigned.
 		
 		String[] parts = val.split("[,.]");
 		String type = parts.length > 0 ? parts[0] : "p";
@@ -209,13 +213,21 @@ public class KeybindPanel extends JPanel {
 				passthroughButton.setSelected(true);
 				passthroughCode = (parts.length >= 3) ? Integer.parseInt(parts[2]) : 1; // Default keycode 1 (ESC).
 				passthroughText.setText(JavaToLinuxKeymapping.cKeyCodeToString(passthroughCode));
-			} else { // Macro type "m"
+            } else if ("c".equals(type)) {
+                buttonGroup.clearSelection();
+                passthroughText.setText("Chord: " + java.util.Arrays.stream(parts).skip(1)
+                    .map(Integer::parseInt).map(JavaToLinuxKeymapping::cKeyCodeToString)
+                    .collect(java.util.stream.Collectors.joining(" + ")));
+            } else if ("m".equals(type)) { // Macro type "m"
 				macroButton.setSelected(true);
 				int macroNum = (parts.length >= 2) ? Integer.parseInt(parts[1]) : 0;
 				macroSelectionBox.setSelectedIndex(macroNum);
 				boolean repeats = (parts.length >= 3) && (Integer.parseInt(parts[2]) != 0);
 				repeatsCheckBox.setSelected(repeats);
-			}
+            } else {
+                buttonGroup.clearSelection();
+                passthroughText.setText("Unassigned");
+            }
 		} catch(NumberFormatException | ArrayIndexOutOfBoundsException e) {
 			System.err.println("Failed to parse binding property: " + val);
 			passthroughButton.setSelected(true); // Fallback to a safe default.
