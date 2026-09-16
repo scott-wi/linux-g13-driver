@@ -83,3 +83,7 @@ experimental_stuff/
 
 # CLion / CMake (falls Benutzer damit arbeitet)
 /cmake-build-*/
+# Release payloads and Python tooling
+g13-driver/src/.stage/
+__pycache__/
+*.pyc

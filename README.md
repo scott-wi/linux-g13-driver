@@ -3,6 +3,8 @@
 This is a modernized fork of the G13 driver for Linux.
 The original project is over 10 years old. This fork has been refactored to use modern C++ standards for the driver and modern Java standards (Java 17 with Maven) for the configuration GUI.
 
+For a short code and behavior overview, see [How the G13 app works](docs/architecture.md). Development instructions are in [AGENTS.md](AGENTS.md).
+
 ## Features
 
 * **Modern C++ Driver:** The core driver has been updated for better performance and compatibility.
@@ -20,7 +22,8 @@ You need to install the following packages via your package manager:
 * `gtk3` / `gtk3-devel`
 * `libusb-1.0-0` (on some distros named `libusb-1.0-0-dev` or `libusb1-devel`)
 * `libappindicator-gtk3` (or similar)
-* `Java 17` or higher
+* `Java 17` or higher and `maven`
+* `Python 3.10` or higher (release tooling)
 * `python-psutil` (for the monitor script)
 
 ### Automated Dependency Installation
@@ -28,48 +31,32 @@ You need to install the following packages via your package manager:
 Alternatively, all needed dependencies can be installed via the `install_deps.sh` script located in the scripts folder.
 
 ```bash
-cd src/scripts
-chmod +x install_deps.sh
-./install_deps.sh
+make dependencies
 ```
 
 ## Build & Installation
 
-1.  Open a terminal and navigate to the project directory.
-2.  Build the driver:
-
-    ```bash
-    make all
-    ```
-
-The installation process will clean up automatically after finishing.
-
-## Choose your Installation Method
-
-### Option A: System-Wide Installation (Standard)
-This is the recommended method for standard usage. It installs binaries to /usr/bin and resources to /usr/share/.
+Build a versioned release locally, then deploy that release:
 
 ```bash
-sudo make install
-```
-Note: As per standard Linux security practices, the installation does not auto-start user services. You must enable the driver for your user manually once:
-
-```bash
-systemctl --user enable --now g13
-systemctl --user start g13
+make dependencies    # Optional: install build dependencies (uses sudo)
+make all             # Build and package into dist/; no installation
+make test            # Isolated deployment tests
+make install-user    # Install the built release for this user
+# OR: sudo make install  # Install it system-wide
 ```
 
-#### Option B: User-Local Installation (Developer Mode)
-This method installs everything to your home directory (~/.local/bin). It is intended for development, testing, or users without root access. Automatically creates and starts the Systemd service.
+To enable or restart the user service as part of user deployment, use
+`make install-user DEPLOY_FLAGS=--activate`.
 
-```bash
-make install-user
-```
-Driver: Installed to ~/.local/bin/linux-g13-driver
+An extracted release works without the source checkout: run
+`python3 install.py install --scope user --activate` from its directory.
+The installer preserves the previous release for rollback and leaves user bindings
+and macros intact. System-wide installation registers a user service; each desktop
+user enables/restarts it separately.
 
-Service: Automatically enabled and started immediately.
-
-Note on Permissions: Both methods install a UDEV rule (/etc/udev/rules.d/99-g13.rules) to allow access to the G13 without sudo. You might need to unplug and replug your device once after installation if it's not detected immediately.
+See [Release deployment](docs/releases.md) for installed paths, platform requirements,
+one-time device permissions, legacy migration, updates, rollback, and staged installs.
 
 ## How to use the Driver and GUI
 
@@ -119,7 +106,7 @@ Live Reload: The driver automatically detects file changes and reloads the confi
 
 The top 4 buttons under the LCD screen select the bindings (M1-M3, MR).
 
-> **Important:** If you configure the application while the driver is running, the driver will not pick up changes unless you select a different binding set or restart the driver.
+> **Note:** The driver watches the active binding file, but macro-only changes and some rapid edits may require switching banks or restarting. See [the architecture guide](docs/architecture.md) for the current reload limitations.
 
 ### Use the built-in Mapping Set (for external tools)
 
@@ -158,16 +145,14 @@ echo -e "CPU: 50%\nRAM: 4GB" > $PIPE
 Currently, only one font size is implemented. There is an example script for system monitoring in the `scripts` folder. Feel free to try it out, modify it, or share your own scripts!
 
 
-### Uninstallation
-
-To remove the driver and all installed files:
+### Release status and rollback
 
 ```bash
-make uninstall
+g13-release status --scope user
+g13-release rollback --scope user --activate
 ```
 
-(Note: This removes the binaries, UDEV rules, and service files, but keeps your configuration in ~/.config/g13 to prevent data loss.)
-
+See [Release deployment](docs/releases.md) for the system-wide equivalents.
 
 ## Notes
 
