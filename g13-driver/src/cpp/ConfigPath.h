@@ -12,6 +12,7 @@
  */
 class ConfigPath {
 public:
+    static std::string getActiveProfileDir();
     /**
      * @brief Gets the full path to a specific binding configuration file.
      * @param bindingId The ID of the binding profile (e.g., 0, 1, 2).

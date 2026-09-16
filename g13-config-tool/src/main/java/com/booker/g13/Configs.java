@@ -1,11 +1,9 @@
 package com.booker.g13;
 
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Date;
 import java.util.Properties;
 
 /**
@@ -46,7 +44,7 @@ public class Configs {
      * Implements XDG standard: ~/.config/g13
      * @return The Path object for the configuration directory.
      */
-	private static Path getConfigDir() {
+	public static Path getRootDir() {
         String xdgConfig = System.getenv("XDG_CONFIG_HOME");
         Path baseDir;
         if (xdgConfig != null && !xdgConfig.isBlank()) {
@@ -55,6 +53,21 @@ public class Configs {
             baseDir = Path.of(System.getProperty("user.home"), ".config");
         }
         return baseDir.resolve("g13");
+    }
+
+    private static Path selectedDirectory;
+    public static Path getConfigDir() {
+        return selectedDirectory == null ? getRootDir() : selectedDirectory;
+    }
+    public static void selectProfile(Path directory) { selectedDirectory = directory; }
+    private static void saveAtomically(Path file, Properties props) throws IOException {
+        Files.createDirectories(file.getParent());
+        Path temp = Files.createTempFile(file.getParent(), ".config-", ".tmp");
+        try {
+            ProfileStore.write(temp, props);
+            Files.move(temp, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } finally { Files.deleteIfExists(temp); }
     }
 
 	public static Properties loadBindings(int item) throws IOException {
@@ -81,10 +94,7 @@ public class Configs {
 
 	public static void saveBindings(int item, Properties props) throws IOException {
 		Path file = getConfigDir().resolve("bindings-" + item + ".properties");
-        Files.createDirectories(file.getParent()); 
-		try (FileOutputStream fos = new FileOutputStream(file.toFile())) {
-			props.store(fos, new Date().toString());
-		}
+        saveAtomically(file, props);
 	}
 
 	public static Properties loadMacro(int macroNum) throws IOException {
@@ -116,9 +126,6 @@ public class Configs {
 
 	public static void saveMacro(int macroNum, Properties props) throws IOException {
 		Path file = getConfigDir().resolve("macro-" + macroNum + ".properties");
-        Files.createDirectories(file.getParent());
-		try (FileOutputStream fos = new FileOutputStream(file.toFile())) {
-			props.store(fos, new Date().toString());
-		}
+        saveAtomically(file, props);
 	}
 }

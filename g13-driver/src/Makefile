@@ -48,6 +48,7 @@ hardware:
 test:
 	bash tests/test_deploy.sh
 	bash tests/test_preview.sh
+	bash tests/test_profiles.sh
 
 clean-build:
 	$(RM) -r ../build

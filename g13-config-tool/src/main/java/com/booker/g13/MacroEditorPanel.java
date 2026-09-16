@@ -204,7 +204,7 @@ public class MacroEditorPanel extends JPanel {
 	 * @return true if the macro is user-definable and can be modified, false otherwise.
 	 */
 	private boolean canModifyMacro() {
-		return macroSelectionBox.getSelectedIndex() >= Configs.DEFAULT_MACROS_COUNT;
+		return macroSelectionBox.getSelectedIndex() >= (Configs.getConfigDir().equals(Configs.getRootDir()) ? Configs.DEFAULT_MACROS_COUNT : 0);
 	}
 
 	/**
@@ -294,8 +294,11 @@ public class MacroEditorPanel extends JPanel {
 	 * Populates the macro selection combo box.
 	 * @param macros An array of Properties, each representing a macro.
 	 */
+	public boolean isRecording() { return captureMode; }
+
 	public void setMacros(final Properties[] macros) {
         loadingData = true;
+        macroSelectionBox.setRenderer(new MacroListCellRenderer());
 		macroSelectionBox.removeAllItems();
 		for (final Properties properties : macros) {
 			macroSelectionBox.addItem(properties);
@@ -316,6 +319,9 @@ public class MacroEditorPanel extends JPanel {
 
         // Enable/disable components based on whether the macro is editable.
         boolean canModify = canModifyMacro();
+        macroSelectionBox.setEnabled(!captureMode);
+        macroList.setEnabled(!captureMode);
+        nameText.setEnabled(!captureMode);
         captureDelays.setEnabled(canModify);
         addDelayButton.setEnabled(canModify);
         nameText.setEditable(canModify);

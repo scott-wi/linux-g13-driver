@@ -23,6 +23,9 @@ public:
     public:
         virtual ~Event() = default;
         virtual void execute() = 0;
+        virtual int key() const { return -1; }
+        virtual bool down() const { return false; }
+        virtual int delay() const { return 0; }
     };
 
     class KeyDownEvent : public Event {
@@ -30,6 +33,8 @@ public:
         int keycode;
     public:
         KeyDownEvent(int code) : keycode(code) {}
+        int key() const override { return keycode; }
+        bool down() const override { return true; }
         void execute() override {
             UInput::send_event(EV_KEY, keycode, 1); 
             UInput::send_event(EV_SYN, SYN_REPORT, 0);
@@ -41,6 +46,7 @@ public:
         int keycode;
     public:
         KeyUpEvent(int code) : keycode(code) {}
+        int key() const override { return keycode; }
         void execute() override {
             UInput::send_event(EV_KEY, keycode, 0); 
             UInput::send_event(EV_SYN, SYN_REPORT, 0);
@@ -52,6 +58,7 @@ public:
         int delay_ms;
     public:
         WaitEvent(int delay) : delay_ms(delay) {}
+        int delay() const override { return delay_ms; }
         void execute() override {
             // Modern C++ sleep
             std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));

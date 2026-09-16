@@ -5,7 +5,8 @@ import java.io.IOException;
 import java.util.Properties;
 import java.util.Set;
 
-import javax.swing.BorderFactory;
+import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -34,10 +35,10 @@ public class G13 extends JPanel {
 	private static final int MAX_MACROS = 200;
 
 	// Named constants for the G13 keycodes of the M1, M2, M3, and MR buttons.
-    private static final int BINDING_KEY_M1 = 25;
-    private static final int BINDING_KEY_M2 = 26;
-    private static final int BINDING_KEY_M3 = 27;
-    private static final int BINDING_KEY_MR = 28;
+    private static final int BINDING_KEY_M1 = 29;
+    private static final int BINDING_KEY_M2 = 30;
+    private static final int BINDING_KEY_M3 = 31;
+    private static final int BINDING_KEY_MR = 32;
     
     /**
      * A set containing the keycodes for the binding switch keys (M1, M2, M3, MR).
@@ -52,7 +53,13 @@ public class G13 extends JPanel {
 	private final KeybindPanel keybindPanel = new KeybindPanel(); // Panel for editing key bindings.
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
 	
-	// Data storage
+	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
+    private final JComboBox<ProfileStore.Profile> profileSelector = new JComboBox<>();
+    private final JLabel activeProfileLabel = new JLabel();
+    private ProfileStore.Profile editingProfile = ProfileStore.DEFAULT;
+    private boolean refreshingProfiles;
+
+    // Data storage
 	private final Properties[] keyBindings = new Properties[4]; // Holds the 4 binding profiles (M1, M2, M3, MR).
 	private final Properties[] macros = new Properties[MAX_MACROS]; // Holds all configured macros.
 	
@@ -63,8 +70,12 @@ public class G13 extends JPanel {
 	public G13() {
 		setLayout(new BorderLayout());
 		
-		// Load all configurations and initialize the UI.
-		loadConfiguration();
+		try {
+            editingProfile = profileStore.active();
+            Configs.selectProfile(profileStore.directory(editingProfile));
+        } catch (IOException e) { showProfileError(e); }
+        // Load all configurations and initialize the UI.
+		if (!loadConfiguration()) throw new IllegalStateException("Cannot load G13 configuration");
 		
 		// Set the initial bindings to the first profile (M1).
 		keybindPanel.setBindings(0, keyBindings[0]);
@@ -93,7 +104,8 @@ public class G13 extends JPanel {
 			}			
 		});
 		
-		// --- UI Assembly ---
+		add(profileToolbar(), BorderLayout.NORTH);
+        // --- UI Assembly ---
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(BorderFactory.createTitledBorder("G13 Keypad"));
 		p.add(g13Label, BorderLayout.CENTER);
@@ -109,30 +121,122 @@ public class G13 extends JPanel {
 		macroEditorPanel.setMacros(macros);
 	}
 
+    private JPanel profileToolbar() {
+        JPanel panel = new JPanel(new BorderLayout());
+        JPanel controls = new JPanel();
+        profileSelector.setPreferredSize(new java.awt.Dimension(230, 28));
+        controls.add(new JLabel("Editing profile:"));
+        controls.add(profileSelector);
+        JButton importButton = new JButton("Import Windows profile…");
+        JButton useButton = new JButton("Use profile");
+        controls.add(importButton);
+        controls.add(useButton);
+        panel.add(controls, BorderLayout.CENTER);
+        panel.add(activeProfileLabel, BorderLayout.SOUTH);
+        refreshProfiles();
+        profileSelector.addActionListener(e -> {
+            if (refreshingProfiles) return;
+            if (macroEditorPanel.isRecording()) {
+                JOptionPane.showMessageDialog(this, "Stop macro recording before switching profiles.");
+                refreshProfiles();
+                return;
+            }
+            var selected = (ProfileStore.Profile) profileSelector.getSelectedItem();
+            if (selected != null) selectProfile(selected);
+        });
+        importButton.addActionListener(e -> importProfile());
+        useButton.addActionListener(e -> {
+            try { profileStore.activate(editingProfile); refreshProfiles(); }
+            catch (IOException ex) { showProfileError(ex); }
+        });
+        return panel;
+    }
+
+    private void refreshProfiles() {
+        refreshingProfiles = true;
+        try {
+            profileSelector.removeAllItems();
+            for (var profile : profileStore.list()) profileSelector.addItem(profile);
+            profileSelector.setSelectedItem(editingProfile);
+            activeProfileLabel.setText("Selected for driver: " + profileStore.active().name());
+        } catch (IOException e) { showProfileError(e); }
+        finally { refreshingProfiles = false; }
+    }
+
+    private void selectProfile(ProfileStore.Profile profile) {
+        var previous = editingProfile;
+        Configs.selectProfile(profileStore.directory(profile));
+        if (!loadConfiguration()) {
+            Configs.selectProfile(profileStore.directory(previous));
+            refreshProfiles();
+            return;
+        }
+        editingProfile = profile;
+        keybindPanel.setMacros(macros);
+        macroEditorPanel.setMacros(macros);
+        mapBindings(0);
+        repaint();
+    }
+
+    private void importProfile() {
+        if (macroEditorPanel.isRecording()) {
+            JOptionPane.showMessageDialog(this, "Stop macro recording before importing a profile.");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Import a Logitech Gaming Software profile");
+        chooser.setFileFilter(new FileNameExtensionFilter("Logitech XML profiles", "xml"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        try {
+            var result = LogitechProfileImporter.read(chooser.getSelectedFile().toPath());
+            String summary = result.name() + "\n" + result.importedAssignments()
+                    + " assignments across M1–M3; " + result.macros().size() + " key macros.\n\n"
+                    + String.join("\n", result.warnings())
+                    + "\n\nImport as a separate profile? Select Use profile when ready to activate it.";
+            JTextArea preview = new JTextArea(summary, 18, 65);
+            preview.setEditable(false);
+            preview.setLineWrap(true);
+            preview.setWrapStyleWord(true);
+            preview.setCaretPosition(0);
+            if (JOptionPane.showConfirmDialog(this, new JScrollPane(preview), "Review import",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+            selectProfile(profileStore.save(result));
+            refreshProfiles();
+        } catch (IOException e) { showProfileError(e); }
+    }
+
+    private void showProfileError(Exception e) {
+        JOptionPane.showMessageDialog(this, e.getMessage(), "Profile error", JOptionPane.ERROR_MESSAGE);
+    }
+
 	/**
 	 * Loads all key binding profiles and macros from configuration files.
 	 * In case of an error, it displays a dialog to the user.
 	 */
-	private void loadConfiguration() {
+	private boolean loadConfiguration() {
 		try {
+            Properties[] loadedBanks = new Properties[4];
+            Properties[] loadedMacros = new Properties[MAX_MACROS];
 			// Load the 4 binding profiles.
 			for (int i = 0; i < keyBindings.length; i++) {
-				keyBindings[i] = Configs.loadBindings(i);
+				loadedBanks[i] = Configs.loadBindings(i);
 			}
 			
 			// Load all possible macros.
 			for (int i = 0; i < macros.length; i++) {
-				macros[i] = Configs.loadMacro(i);
+				loadedMacros[i] = Configs.loadMacro(i);
 			}
 			
-			// Apply the first binding profile (M1) by default.
+			System.arraycopy(loadedBanks, 0, keyBindings, 0, keyBindings.length);
+            System.arraycopy(loadedMacros, 0, macros, 0, macros.length);
+            // Apply the first binding profile (M1) by default.
 			mapBindings(0);
+            return true;
 		}
 		catch (IOException e) {
 			e.printStackTrace();
 			JOptionPane.showMessageDialog(this, "Failed to load configuration:\n" + e.getMessage(), "Configuration Error", JOptionPane.ERROR_MESSAGE);
-            // The application could exit here as it's not usable without configuration.
-            // System.exit(1);
+            return false;
 		}
 	}
 		
@@ -172,7 +276,11 @@ public class G13 extends JPanel {
 							int keycode = Integer.parseInt(parts[2]);
 							k.setMappedValue(JavaToLinuxKeymapping.cKeyCodeToString(keycode));
 						}
-					} else if ("m".equals(type)) { // Macro
+					} else if ("c".equals(type)) {
+                        k.setMappedValue("Chord: " + java.util.Arrays.stream(parts).skip(1)
+                            .map(Integer::parseInt).map(JavaToLinuxKeymapping::cKeyCodeToString)
+                            .collect(java.util.stream.Collectors.joining(" + ")));
+                    } else if ("m".equals(type)) { // Macro
 						if (parts.length >= 3) {
 							int macroNum = Integer.parseInt(parts[1]);
 							if (macroNum >= 0 && macroNum < macros.length) {

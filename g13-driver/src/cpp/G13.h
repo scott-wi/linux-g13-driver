@@ -32,6 +32,8 @@ private:
 
     // Feature: Live-Reload
     time_t last_config_mtime;
+    long last_config_nsec = 0;
+    std::string profile_directory;
     void check_for_config_update();
 
     // --- Private Methods ---
@@ -43,7 +45,7 @@ private:
     void parse_keys(unsigned char *buf);
 
     // FIFO / Pipe for external input
-    int fifo_fd;             // File Descriptor for the pipe
+    int fifo_fd = -1;             // File Descriptor for the pipe
     std::string fifo_path;   // Path to pipe (default: /tmp/g13-lcd)
     
     void init_fifo();        // Create pipe
