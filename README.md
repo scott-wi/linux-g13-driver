@@ -33,6 +33,10 @@ Alternatively, all needed dependencies can be installed via the `install_deps.sh
 make dependencies
 ```
 
+## Fedora preview installation
+
+Install or upgrade a prebuilt preview with the [copy/paste instructions](docs/previews.md). Initially supports DNF-managed Fedora 44 x86_64. The installer checks dependencies, verifies the archive, deploys a managed release, and restarts the user service while preserving configuration. Private repository downloads require GitHub authentication.
+
 ## Build & Installation
 
 Build a versioned release locally, then deploy that release:

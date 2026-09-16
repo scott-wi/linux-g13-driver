@@ -1,0 +1,115 @@
+name: Fedora preview
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fedora-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install Fedora build prerequisites
+        run: |
+          dnf install -y git make cmake gcc-c++ pkgconf-pkg-config libusb1-devel \
+            gtk3-devel libappindicator-gtk3-devel maven 'java-devel >= 17' \
+            tar gzip findutils diffutils which curl jq
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build and test
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          make all
+          make test
+      - name: Prepare preview assets
+        run: |
+          mkdir preview-assets
+          release=$(readlink -f dist/latest)
+          cp "$release.tar.gz" preview-assets/g13-preview-fedora-44-x86_64.tar.gz
+          cp install.sh preview-assets/install.sh
+          cd preview-assets
+          sha256sum g13-preview-fedora-44-x86_64.tar.gz > g13-preview-fedora-44-x86_64.tar.gz.sha256
+          sha256sum install.sh > install.sh.sha256
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fedora-preview
+          path: preview-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  runtime:
+    needs: build
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install runtime packages in a clean Fedora image
+        run: dnf install -y 'java >= 17' libusb1 gtk3 libappindicator-gtk3 curl jq tar gzip findutils diffutils
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fedora-preview
+          path: preview-assets
+      - name: Verify archive and runtime linkage without build tools
+        run: |
+          cd preview-assets
+          sha256sum --check g13-preview-fedora-44-x86_64.tar.gz.sha256
+          sha256sum --check install.sh.sha256
+          source install.sh
+          java_works
+          tar -xzf g13-preview-fedora-44-x86_64.tar.gz --no-same-owner --same-permissions
+          release=$(find . -maxdepth 1 -type d -name 'g13-*' -print -quit)
+          source "$release/release-common.sh"
+          verify_release "$release"
+          libraries=$(ldd "$release/libexec/linux-g13-driver")
+          printf '%s\n' "$libraries"
+          [[ $libraries != *'not found'* ]]
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [build, runtime]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: fedora-preview
+          path: preview-assets
+      - name: Publish complete prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+          SOURCE_REF: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          channel=branch
+          if [[ $SOURCE_REF == refs/heads/main ]]; then channel=main; fi
+          tag="preview-$channel-$RUN_ID-$RUN_ATTEMPT"
+          printf 'Fedora 44 x86_64 preview of commit `%s`.\n\nSource: `%s`. Built and tested in Fedora 44; physical device validation is separate.\n\nDownload install.sh or use the install instructions in the repository. Updates preserve configuration and retain the previous managed release for rollback.\n' "$SOURCE_SHA" "$SOURCE_REF" > notes.md
+          # Draft until every asset is uploaded; never expose a half-published preview.
+          gh release create "$tag" --target "$SOURCE_SHA" --draft --prerelease \
+            --title "Fedora preview $RUN_ID.$RUN_ATTEMPT ($channel)" --notes-file notes.md
+          gh release upload "$tag" preview-assets/*
+          gh release edit "$tag" --draft=false --latest=false
+          printf 'Preview: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$tag" >> "$GITHUB_STEP_SUMMARY"

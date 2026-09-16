@@ -7,6 +7,8 @@ and file checksums (`SHA256SUMS`). Metadata is parsed as data, never executed.
 The directory name includes the app version, build distro/version, architecture,
 and a content digest. `dist/latest` points to the most recently built release.
 
+For downloadable Fedora previews and a copy/paste installer, see [Fedora preview installation](previews.md). The root `install.sh` downloads previews; the `install.sh` inside a release deploys that extracted payload.
+
 ## Build once
 
 From the repository root (or `g13-driver/src`):
@@ -20,7 +22,7 @@ make test            # Temporary-directory deployment tests; no device access
 Building never installs system packages or starts services. `make -j all` also
 works: release assembly waits for both builds. Release assembly, installation, and
 tests use Bash and standard GNU/Linux utilities (coreutils, find, grep, sed, tar/gzip).
-No Python, jq, extra runtime, or test framework is required. Running the app still
+Local build/deployment needs no Python or extra language runtime. The preview downloader and its tests also use curl/jq; see [Fedora previews](previews.md). Running the app still
 needs Java 17+ and the native libraries linked by the driver (libusb, GTK3,
 AppIndicator and C++ runtime). The existing optional Python LCD monitor example
 is independent of the build and release workflow.

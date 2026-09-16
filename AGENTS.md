@@ -2,9 +2,9 @@
 
 ## Workspace and scope
 
-- Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/windows-profile-import`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
+- Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/fedora-preview-releases`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
+- Fetch and push only the private `scott-wi/linux-g13-driver` origin repository; do not use upstream.
 - The user owns a G13. Building is authorized; installing, restarting the live service, or taking control of the device requires an explicit request for that action.
-- Fetch and push only `origin`, the private `scott-wi/linux-g13-driver` repository. Do not contact the original upstream repository.
 - Named profiles and single Logitech XML import are implemented; foreground application matching, folder import, and further graphical UI changes remain planned. See [docs/profile-import.md](docs/profile-import.md).
 - Read [docs/architecture.md](docs/architecture.md) for the current behavior and extension points.
 
@@ -19,13 +19,13 @@ make test
 
 This builds the C++ driver and Java GUI and assembles a versioned release plus archive in `dist/`. Building does not install packages; `make dependencies` is explicit. Root targets delegate to `g13-driver/src/Makefile`. See [docs/releases.md](docs/releases.md) for deployment, migration, rollback, and DESTDIR staging.
 
-C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling and deployment tests use Bash and standard GNU/Linux utilities; no additional language runtime is required. The all target skips Java tests. `make test` runs deployment integration tests, Java importer/storage/headless Swing checks, and C++ profile/action tests with mocked USB and uinput in temporary directories; distinguish those checks from actual hardware validation.
+C++ uses C++17, CMake, libusb, GTK3, and AppIndicator. The Swing GUI targets Java 17 and builds with Maven. Release tooling and deployment tests use Bash and standard GNU/Linux utilities; no additional language runtime is required. The all target skips Java tests. `make test` runs deployment and preview-download integration tests (the latter require curl/jq), Java importer/storage/headless Swing checks, and C++ profile/action tests with mocked USB and uinput in temporary directories; distinguish those checks from actual hardware validation.
 
 Do not commit generated `build/`, `target/`, `.stage/`, or `dist/` artifacts. Release launchers resolve their own location. Launching the GUI still writes real user configuration unless `XDG_CONFIG_HOME` is isolated. Use DESTDIR for deployment checks; even `--activate` is suppressed in staged installs.
 
 ## Code conventions and contracts
 
-- Add dependencies only when necessary AND explicitly approved by the user beforehand. Reuse existing dependencies and standard Linux utilities; convenience alone is not justification.
+- Add dependencies only when necessary AND explicitly approved by the user beforehand. Curl and jq are approved for preview installation/API handling; Fedora preview runtime packages are resolved through DNF, using `java >= 17` and `java-devel >= 17` capabilities instead of assuming `java-latest` or a fixed JDK name. Reuse existing dependencies and standard Linux utilities; convenience alone is not justification.
 
 - Keep USB/input handling in `g13-driver/src/cpp`; keep Swing editing and persistence in `g13-config-tool/src/main/java/com/booker/g13`.
 - Configuration is a shared C++/Java contract. Update both readers/writers when changing it and preserve existing users' bindings and macros.
