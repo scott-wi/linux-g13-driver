@@ -6,6 +6,8 @@ This is a Linux userspace driver for the Logitech G13, plus a separate Java Swin
 
 The GUI already provides a clickable keypad image with polygon hit areas, hover information, and selection highlighting. The enlarged keypad shows binding labels inside the buttons, truncates long names with an ellipsis, and keeps full descriptions available on hover. Labels follow the profile and layout being edited and update when bindings or macro names are saved. Draggable dividers resize both sidebars while the preview responds to the remaining space. Chevron handles on the left and right preview edges hide or show each sidebar independently. Reopening a sidebar uses its minimum usable width, computed from its controls; divider dragging cannot shrink it below that width. Theatre hides both sidebars and its own button; the edge handles remain available to reopen either sidebar. Double-clicking the preview opens the right editor at its minimum usable width without changing the profiles sidebar. Double-clicking a key also selects it for editing. The focused image fits all assignable controls (including the thumbstick and top buttons), preserving the full chassis width while cropping vertically. Hiding both sidebars individually also enters this focused view. Side panels edit key assignments, color, and macros, including recording key presses/releases and delays.
 
+Dropdowns use a shared themed Swing UI that opens mouse-triggered popups only after the click completes. This covers the layout selectors, joystick mode, macro selectors/type, and dialog dropdowns; keyboard navigation and popup-list selection remain standard Swing behavior.
+
 ## Runtime flow and source map
 
 ```text

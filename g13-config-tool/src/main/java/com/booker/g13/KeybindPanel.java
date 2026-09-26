@@ -39,7 +39,7 @@ public class KeybindPanel extends JPanel {
 	
 	// --- UI Components for Macro Binding ---
 	private final JCheckBox macroButton = new JCheckBox("Macro");
-	private final JComboBox<Properties> macroSelectionBox = new ClickComboBox<>();
+	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
 	private final JCheckBox repeatsCheckBox = new JCheckBox("Auto repeat");
 	private final JCheckBox bankButton = new JCheckBox("Switch layout");
 	private final JComboBox<String> bankSelectionBox = new JComboBox<>(new String[]{"M1", "M2", "M3"});

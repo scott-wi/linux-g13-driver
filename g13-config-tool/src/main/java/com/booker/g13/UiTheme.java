@@ -58,6 +58,8 @@ public final class UiTheme {
 
     static void apply(boolean value) {
         dark = value;
+        // Install once for the whole form, dialogs, and controls created after a theme change.
+        UIManager.put("ComboBoxUI", ClickComboBoxUI.class.getName());
         Color background = color(value ? 0x151922 : 0xF3F5F7);
         Color surface = color(value ? 0x202631 : 0xFFFFFF);
         Color input = color(value ? 0x171C25 : 0xFFFFFF);

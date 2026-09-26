@@ -5,24 +5,25 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.plaf.ComponentUI;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import javax.swing.plaf.metal.MetalComboBoxUI;
 
-/** A combo whose mouse opener waits until the click is complete before showing a popup. */
-class ClickComboBox<E> extends JComboBox<E> {
-    @Override public void updateUI() {
-        // UiTheme uses Metal. Keep its renderer, keyboard actions, list selection and dismissal.
-        setUI(new MetalComboBoxUI() {
-            @Override protected ComboPopup createPopup() {
-                return new BasicComboPopup(comboBox) {
-                    @Override protected MouseListener createMouseListener() {
-                        return opener(comboBox);
-                    }
-                };
+/** Shared Metal dropdown behavior: finish the mouse click before opening the popup. */
+public final class ClickComboBoxUI extends MetalComboBoxUI {
+    public static ComponentUI createUI(JComponent component) {
+        return new ClickComboBoxUI();
+    }
+
+    @Override protected ComboPopup createPopup() {
+        return new BasicComboPopup(comboBox) {
+            @Override protected MouseListener createMouseListener() {
+                return opener(comboBox);
             }
-        });
+        };
     }
 
     static MouseListener opener(JComboBox<?> combo) {
@@ -33,7 +34,9 @@ class ClickComboBox<E> extends JComboBox<E> {
                 pressedOn = null;
                 if (SwingUtilities.isLeftMouseButton(event) && combo.isEnabled()) {
                     pressedOn = event.getComponent();
-                    if (combo.isRequestFocusEnabled()) combo.requestFocusInWindow();
+                    Component focus = combo.isEditable() ? combo.getEditor().getEditorComponent() : combo;
+                    if (!(focus instanceof JComponent target) || target.isRequestFocusEnabled())
+                        focus.requestFocusInWindow();
                 }
             }
 
