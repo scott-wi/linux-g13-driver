@@ -43,6 +43,7 @@ public class G13 extends JPanel {
 	private final JLabel activeLayout = new JLabel("Device: checking…");
 	private final Timer stateTimer = new Timer(500, event -> refreshDriverState());
 	private boolean changingLayout;
+    private DriverState.Snapshot lastDriverState;
     private final JPanel editorSidebar = new JPanel(new BorderLayout(0, 12));
     private final JToggleButton profilesVisible = new JToggleButton("Profiles", true);
     private final JToggleButton editorVisible = new JToggleButton("Editor", true);
@@ -273,9 +274,22 @@ public class G13 extends JPanel {
 		var state = DriverState.read();
 		if (state.isEmpty()) {
 			activeLayout.setText("Device: unavailable");
+            lastDriverState = null;
 			return;
 		}
-		var snapshot = state.get();
+        applyDriverState(state.get());
+    }
+
+    // Driven by the background timer, independent of window or keyboard focus.
+    void applyDriverState(DriverState.Snapshot snapshot) {
+        boolean layoutChanged = lastDriverState == null || snapshot.layout() != lastDriverState.layout()
+                || !snapshot.layoutEvent().equals(lastDriverState.layoutEvent());
+        lastDriverState = snapshot;
+        if (layoutChanged && layoutSelector.getSelectedIndex() != snapshot.layout()) {
+            Key selected = g13Label.selectedKey();
+            mapBindings(snapshot.layout());
+            keybindPanel.setSelectedKey(selected);
+        }
 		String profile = snapshot.profileId().equals(editingProfile.id()) ? "active" : "another profile";
 		activeLayout.setText("Device: M" + (snapshot.layout() + 1) + " · " + profile);
 	}

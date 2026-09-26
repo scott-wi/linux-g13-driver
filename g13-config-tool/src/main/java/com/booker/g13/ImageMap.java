@@ -115,6 +115,7 @@ public class ImageMap extends JComponent {
     }
 
     Key keyAtComponent(Point point) { return keyAt(point); }
+    Key selectedKey() { return selected; }
 
     @Override public String getToolTipText(MouseEvent event) {
         Key key = keyAt(event.getPoint());

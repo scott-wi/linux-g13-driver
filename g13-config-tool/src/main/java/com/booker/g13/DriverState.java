@@ -9,7 +9,7 @@ import java.util.Properties;
 
 /** Read the active profile and M-layout published by the running driver. */
 final class DriverState {
-    record Snapshot(String profileId, int layout) {}
+    record Snapshot(String profileId, int layout, String layoutEvent) {}
 
     static Path path() {
         String runtime = System.getenv("XDG_RUNTIME_DIR");
@@ -30,7 +30,7 @@ final class DriverState {
         try {
             int layout = Integer.parseInt(state.getProperty("layout", ""));
             if ((profile.equals("default") || profile.matches("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"))
-                    && layout >= 0 && layout <= 2) return Optional.of(new Snapshot(profile, layout));
+                    && layout >= 0 && layout <= 2) return Optional.of(new Snapshot(profile, layout, state.getProperty("layout-event", "")));
         } catch (NumberFormatException ignored) {}
         return Optional.empty();
     }

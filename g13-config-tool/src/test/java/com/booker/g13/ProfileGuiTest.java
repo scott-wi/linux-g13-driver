@@ -156,6 +156,43 @@ public class ProfileGuiTest {
         for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
     }
 
+    static void checkHardwareLayouts(G13 gui) throws Exception {
+        ImageMap map = find(gui, ImageMap.class);
+        KeybindPanel editor = find(gui, KeybindPanel.class);
+        ProfileSidebar profiles = find(gui, ProfileSidebar.class);
+        String profileId = profiles.selected().id();
+        JComboBox<?> layouts = layoutBox(gui);
+        gui.setSize(1920, 1080);
+        layout(gui);
+        byte[][] before = new byte[3][];
+        for (int i = 0; i < 3; i++) before[i] = Files.readAllBytes(Configs.getConfigDir().resolve("bindings-" + i + ".properties"));
+        previewClick(map, map.imagePointToComponent(80, 203), 1, java.awt.event.MouseEvent.BUTTON1);
+        ProfileImportTest.check(!gui.isFocusOwner(), "test unexpectedly has focus");
+        gui.applyDriverState(new DriverState.Snapshot(profileId, 1, "100"));
+        ProfileImportTest.check(layouts.getSelectedIndex() == 1
+                && Key.getKeyFor(0).getMappedValue().equals(JavaToLinuxKeymapping.cKeyCodeToString(32))
+                && textField(editor, JavaToLinuxKeymapping.cKeyCodeToString(32)) != null,
+                "background M2 change did not update preview and selected-key editor");
+        layouts.setSelectedIndex(0);
+        gui.applyDriverState(new DriverState.Snapshot(profileId, 1, "100"));
+        ProfileImportTest.check(layouts.getSelectedIndex() == 0, "unchanged poll overwrote manual editing layout");
+        gui.applyDriverState(new DriverState.Snapshot(profileId, 1, "101"));
+        ProfileImportTest.check(layouts.getSelectedIndex() == 1, "reselecting the hardware layout did not synchronize");
+        toggle(gui, "Theatre").doClick();
+        gui.applyDriverState(new DriverState.Snapshot("default", 2, "102"));
+        ProfileImportTest.check(layouts.getSelectedIndex() == 2 && toggle(gui, "Theatre").isSelected()
+                && profiles.selected().id().equals(profileId)
+                && Key.getKeyFor(0).getMappedValue().equals(JavaToLinuxKeymapping.cKeyCodeToString(18)),
+                "hardware change did not update theatre or unexpectedly changed the editing profile");
+        gui.applyDriverState(new DriverState.Snapshot(profileId, 0, ""));
+        ProfileImportTest.check(layouts.getSelectedIndex() == 0, "legacy driver layout changes stopped working");
+        for (int i = 0; i < 3; i++) ProfileImportTest.check(Arrays.equals(before[i],
+                Files.readAllBytes(Configs.getConfigDir().resolve("bindings-" + i + ".properties"))),
+                "hardware layout synchronization rewrote bindings");
+        toggle(gui, "Profiles").doClick();
+        toggle(gui, "Editor").doClick();
+    }
+
     static void previewClick(Component target, Point point, int count, int button) {
         target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_CLICKED,
                 System.currentTimeMillis(), 0, point.x, point.y, count, false, button));
@@ -268,6 +305,9 @@ public class ProfileGuiTest {
                 validState.setProperty("layout", "2");
                 ProfileImportTest.check(DriverState.parse(validState).orElseThrow().layout() == 2,
                         "valid driver layout state was not accepted");
+                validState.setProperty("layout-event", "12345");
+                ProfileImportTest.check("12345".equals(DriverState.parse(validState).orElseThrow().layoutEvent()),
+                        "driver layout event was not parsed");
                 validState.setProperty("layout", "7");
                 ProfileImportTest.check(DriverState.parse(validState).isEmpty(), "invalid driver layout state was accepted");
                 // Initialize the legacy files as a real first launch would.
@@ -277,6 +317,8 @@ public class ProfileGuiTest {
                 for (int i = 0; i < 4; i++) { banks[i] = new Properties(); banks[i].setProperty("color", "255,255,255"); }
                 banks[0].setProperty("G0", "c,42,17");
                 banks[0].setProperty("G1", "m,0,0");
+                banks[1].setProperty("G0", "p,k.32");
+                banks[2].setProperty("G0", "p,k.18");
                 Properties textMacro = new Properties();
                 textMacro.setProperty("id", "0");
                 textMacro.setProperty("name", "Imported greeting");
@@ -419,6 +461,7 @@ public class ProfileGuiTest {
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
+                checkHardwareLayouts(gui);
                 checkPreviewDoubleClick(gui);
                 checkSidebarResize(gui);
                 checkTheatre(gui, Path.of(args[0]).resolveSibling("g13-theatre-dark.png"));

@@ -105,9 +105,25 @@ int main(int argc, char** argv) {
             std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
             std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
             assert(contents.find("layout=1") != std::string::npos);
+            assert(!device.layout_event.empty());
+            assert(contents.find("layout-event=" + device.layout_event) != std::string::npos);
         }
+        const std::string first_layout_event = device.layout_event;
+        device.parse_key(G13_KEY_M2, report); // held report must not publish another press
+        assert(device.layout_event == first_layout_event);
         assert(contains(31, 0));
         unsigned char released[5] = {};
+        device.parse_key(G13_KEY_M2, released);
+        device.parse_key(G13_KEY_M2, report); // reselecting M2 still notifies the GUI
+        assert(device.bindings == 1 && device.layout_event != first_layout_event);
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("layout-event=" + device.layout_event) != std::string::npos);
+        }
+        const std::string reselected_event = device.layout_event;
+        device.loadBindings(); // ordinary config reload must not look like a hardware press
+        assert(device.layout_event == reselected_event);
         device.parse_key(G13_KEY_M2, released);
         unsigned char m1[5] = {};
         m1[G13_KEY_M1 / 8] = 1 << (G13_KEY_M1 % 8);

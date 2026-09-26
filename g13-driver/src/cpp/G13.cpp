@@ -141,7 +141,8 @@ void G13::publish_state() {
     std::ofstream state(temporary, std::ios::trunc);
     if (!state.is_open()) return;
     state << "profile=" << ConfigPath::getSelectedProfileId() << '\n'
-          << "layout=" << bindings << '\n';
+          << "layout=" << bindings << '\n'
+          << "layout-event=" << layout_event << '\n';
     state.close();
     chmod(temporary.c_str(), 0600);
     if (rename(temporary.c_str(), path.c_str()) != 0) unlink(temporary.c_str());
@@ -423,9 +424,14 @@ void G13::handle_key_state(int key, int pressed) {
     }
     if (pressed && bank_targets[key] >= 0) {
         bank_switch_held[key] = true;
+        // A fresh event also lets the GUI follow a press of the already-active M-key.
+        // Keep it stable across config reloads so saving edits cannot reset the GUI layout.
+        layout_event = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
         if (bindings != bank_targets[key]) {
             bindings = bank_targets[key];
             loadBindings();
+        } else {
+            publish_state();
         }
         return;
     }

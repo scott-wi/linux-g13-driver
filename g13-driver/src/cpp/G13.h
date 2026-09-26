@@ -37,6 +37,7 @@ private:
     long last_config_nsec = 0;
     time_t last_profile_scan = 0;
     std::string profile_directory;
+    std::string layout_event;
     void check_for_config_update();
     void publish_state();
 
