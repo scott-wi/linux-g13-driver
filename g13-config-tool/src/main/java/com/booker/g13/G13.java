@@ -1,6 +1,7 @@
 package com.booker.g13;
 
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.io.IOException;
 import java.util.Properties;
 import java.util.Set;
@@ -66,7 +67,8 @@ public class G13 extends JPanel {
 	 * Initializes layout, loads configuration, and sets up UI components and listeners.
 	 */
 	public G13() {
-		setLayout(new BorderLayout());
+		setLayout(new BorderLayout(12, 12));
+		setBorder(BorderFactory.createEmptyBorder(0, 6, 12, 12));
 		
 		try {
             editingProfile = profileStore.persistentProfile().orElse(profileStore.defaultProfile());
@@ -110,16 +112,21 @@ public class G13 extends JPanel {
                 } else selectProfile(profile);
             }
             @Override public void importRequested() { importProfile(); }
+            @Override public void themeChanged(boolean dark) {
+                UiTheme.setDark(dark, SwingUtilities.getWindowAncestor(G13.this));
+                repaint();
+            }
             @Override public void error(Exception error) { showProfileError(error); }
         });
 		add(profileSidebar, BorderLayout.WEST);
         // --- UI Assembly ---
 		final JPanel p = new JPanel(new BorderLayout());
-		p.setBorder(BorderFactory.createTitledBorder("G13 Keypad"));
+		p.setBorder(UiTheme.sectionBorder("G13 Keypad"));
 		p.add(g13Label, BorderLayout.CENTER);
 		add(p, BorderLayout.CENTER);
 		
-		final JPanel rightPanel = new JPanel(new BorderLayout());
+		final JPanel rightPanel = new JPanel(new BorderLayout(0, 12));
+		rightPanel.setPreferredSize(new Dimension(390, 720));
 		rightPanel.add(keybindPanel, BorderLayout.NORTH);
 		rightPanel.add(macroEditorPanel, BorderLayout.CENTER);
 		add(rightPanel, BorderLayout.EAST);
@@ -275,12 +282,7 @@ public class G13 extends JPanel {
 	public static void main(String[] args) {
 		// Ensure all UI operations are performed on the Event Dispatch Thread (EDT).
         SwingUtilities.invokeLater(() -> {
-            try {
-                // Set a modern look and feel for the UI.
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            UiTheme.initialize();
 
             final JFrame frame = new JFrame("G13 Configuration Tool, Version " + VERSION);
             frame.setIconImage(ImageMap.G13_KEYPAD.getImage());
@@ -290,6 +292,7 @@ public class G13 extends JPanel {
             frame.getContentPane().add(g13, BorderLayout.CENTER);
             
             frame.pack(); // Size the frame to fit its contents.
+            frame.setMinimumSize(new Dimension(1100, 720));
             frame.setLocationRelativeTo(null); // Center the frame on the screen.
             frame.setVisible(true);
         });

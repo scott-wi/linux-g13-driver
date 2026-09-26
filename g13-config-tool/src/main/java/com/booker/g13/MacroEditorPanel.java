@@ -32,11 +32,11 @@ public class MacroEditorPanel extends JPanel {
 	private final DefaultListModel<String> listModel = new DefaultListModel<>();
 	private final JList<String> macroList = new JList<>(listModel);
 	private final JTextField nameText = new JTextField();
-	private final JButton addDelayButton = new JButton("Add Delay");
-	private final JCheckBox captureDelays = new JCheckBox("Rec Delays", true);
-	private final JButton editButton = new JButton("Edit Delay");
-	private final JButton deleteButton = new JButton("Delete Step");
-	private final JButton recordButton = new JButton("Clear & Record");
+	private final JButton addDelayButton = new JButton("Add delay");
+	private final JCheckBox captureDelays = new JCheckBox("Record delays", true);
+	private final JButton editButton = new JButton("Edit delay");
+	private final JButton deleteButton = new JButton("Delete step");
+	private final JButton recordButton = new JButton("Clear and record");
 	
 	// --- State Variables ---
 	private volatile boolean loadingData = false; // Flag to prevent listeners firing during data load.
@@ -47,8 +47,8 @@ public class MacroEditorPanel extends JPanel {
 	 * Constructs the MacroEditorPanel, setting up its UI and listeners.
 	 */
 	public MacroEditorPanel(){
-		setLayout(new BorderLayout());
-		setBorder(BorderFactory.createTitledBorder("Macro Editor Panel"));
+		setLayout(new BorderLayout(0, 10));
+		setBorder(UiTheme.sectionBorder("Macro editor"));
 		
 		setupUI();
         attachListeners();
@@ -61,24 +61,25 @@ public class MacroEditorPanel extends JPanel {
      * Creates and arranges all UI components within the panel.
      */
     private void setupUI() {
-        final JPanel northPanel = new JPanel(new BorderLayout());
+        final JPanel northPanel = new JPanel(new BorderLayout(0, 8));
 		northPanel.add(macroSelectionBox, BorderLayout.NORTH);
 
-		final JPanel namePanel = new JPanel(new BorderLayout());
-		namePanel.add(new JLabel("Name : "), BorderLayout.WEST);
+		final JPanel namePanel = new JPanel(new BorderLayout(10, 0));
+		namePanel.add(new JLabel("Name"), BorderLayout.WEST);
 		namePanel.add(nameText, BorderLayout.CENTER);
 		northPanel.add(namePanel, BorderLayout.SOUTH);
 
 		add(northPanel, BorderLayout.NORTH);
 		add(new JScrollPane(macroList), BorderLayout.CENTER);
 
-		final JPanel controls = new JPanel(new GridLayout(0, 1));
-		final JPanel tmp1 = new JPanel(new GridLayout(1, 2));
+		final JPanel controls = new JPanel(new GridLayout(0, 1, 0, 8));
+		controls.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+		final JPanel tmp1 = new JPanel(new GridLayout(1, 2, 8, 0));
 		tmp1.add(captureDelays);
 		tmp1.add(addDelayButton);
 		controls.add(tmp1);
 
-		final JPanel tmp2 = new JPanel(new GridLayout(1, 2));
+		final JPanel tmp2 = new JPanel(new GridLayout(1, 2, 8, 0));
 		tmp2.add(editButton);
 		tmp2.add(deleteButton);
 		controls.add(tmp2);
@@ -125,13 +126,13 @@ public class MacroEditorPanel extends JPanel {
 			@Override public void removeUpdate(DocumentEvent e) { updateNameColor(); }
 			private void updateNameColor() {
 				// Change text color to red to signify unsaved changes.
-				nameText.setForeground(loadingData ? Color.black : Color.red);
+				nameText.setForeground(loadingData ? UIManager.getColor("TextField.foreground") : UiTheme.warning());
 			}
 		});
 
         // Save the macro name when the user presses Enter.
         nameText.addActionListener(e -> {
-			nameText.setForeground(Color.black); // Revert color to black.
+			nameText.setForeground(UIManager.getColor("TextField.foreground"));
 			saveMacro();
 			macroSelectionBox.repaint(); // Repaint to show the new name in the combo box.
 		});
@@ -216,12 +217,12 @@ public class MacroEditorPanel extends JPanel {
         setComponentStates(!captureMode && canModifyMacro());
 		
 		if (captureMode) {
-			recordButton.setText("Stop Recording");
+			recordButton.setText("Stop recording");
 			listModel.removeAllElements(); // Clear the previous sequence.
 			lastCapture = 0;
             nameText.setEnabled(false); // Prevent name changes during recording.
 		} else {
-			recordButton.setText("Clear & Record");
+			recordButton.setText("Clear and record");
             nameText.setEnabled(canModifyMacro());
 			saveMacro();
 		}
@@ -342,7 +343,7 @@ public class MacroEditorPanel extends JPanel {
         }
 		
 		loadingData = false;
-        nameText.setForeground(Color.black); // Reset name color to black.
+        nameText.setForeground(UIManager.getColor("TextField.foreground"));
 	}
 	
 	/**
