@@ -23,6 +23,7 @@ public final class ProfileSidebar extends JPanel {
     private final Listener listener;
     private final DefaultListModel<ProfileStore.Profile> model = new DefaultListModel<>();
     private final JList<ProfileStore.Profile> list = new JList<>(model);
+    private final JTextField profileName = new JTextField();
     private final JTextField application = new JTextField();
     private final JCheckBox persistent = new JCheckBox("Persistent profile");
     private final JCheckBox darkMode = new JCheckBox("Dark mode", UiTheme.isDark());
@@ -64,6 +65,12 @@ public final class ProfileSidebar extends JPanel {
         row.fill = GridBagConstraints.HORIZONTAL;
         row.anchor = GridBagConstraints.WEST;
         row.insets = new Insets(0, 0, 5, 0);
+        details.add(new JLabel("Profile name"), row);
+        row.gridy++;
+        row.insets = new Insets(0, 0, 10, 0);
+        details.add(profileName, row);
+        row.gridy++;
+        row.insets = new Insets(0, 0, 5, 0);
         details.add(new JLabel("Application executable"), row);
         application.setToolTipText("Executable name, for example game or game.exe");
         row.gridy++;
@@ -71,7 +78,7 @@ public final class ProfileSidebar extends JPanel {
         details.add(application, row);
 
         JPanel editButtons = new JPanel(new GridLayout(1, 2, 8, 0));
-        JButton save = new JButton("Save app");
+        JButton save = new JButton("Save details");
         JButton chooseIcon = new JButton("Choose icon…");
         editButtons.add(save);
         editButtons.add(chooseIcon);
@@ -125,6 +132,7 @@ public final class ProfileSidebar extends JPanel {
 
     private void showDetails(ProfileStore.Profile profile) {
         if (profile == null) return;
+        profileName.setText(profile.name());
         application.setText(profile.applications().isEmpty() ? "" : profile.applications().get(0));
         try {
             ProfileStore.Profile defaultProfile = store.defaultProfile();
@@ -138,7 +146,7 @@ public final class ProfileSidebar extends JPanel {
 
     private void updateSelected(Path icon) {
         try {
-            ProfileStore.Profile updated = store.update(list.getSelectedValue(), application.getText(), icon);
+            ProfileStore.Profile updated = store.update(list.getSelectedValue(), profileName.getText(), application.getText(), icon);
             icons.clear();
             refresh(updated);
             listener.selected(updated);

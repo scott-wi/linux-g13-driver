@@ -48,6 +48,8 @@ G13::G13(libusb_device *device) {
     actions.resize(G13_NUM_KEYS);
     for (int i = 0; i < G13_NUM_KEYS; i++) {
         actions[i] = std::make_unique<G13Action>();
+        bank_targets[i] = -1;
+        bank_switch_held[i] = false;
     }
 
     if (libusb_open(device, &handle) != 0) {
@@ -160,9 +162,19 @@ std::unique_ptr<Macro> G13::loadMacro(int num) {
 }
 
 void G13::parse_bindings_from_stream(std::istream& stream) {
-    // (Logic remains identical to previous version, omitted for brevity but preserved)
+    std::ostringstream raw;
+    raw << stream.rdbuf();
+    const std::string contents = raw.str();
+    bool modern_format = false;
+    std::istringstream format_lines(contents);
     std::string line;
-    while (std::getline(stream, line)) {
+    while (std::getline(format_lines, line))
+        if (trim_string(line) == "format=2") modern_format = true;
+    if (!modern_format)
+        for (int key = G13_KEY_M1; key <= G13_KEY_M3; ++key) bank_targets[key] = key - G13_KEY_M1;
+
+    std::istringstream lines(contents);
+    while (std::getline(lines, line)) {
         std::string trimmed_line = trim_string(line);
         if (trimmed_line.empty() || trimmed_line[0] == '#') continue;
         size_t eq_pos = trimmed_line.find('=');
@@ -195,16 +207,24 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
                     if (keytype_str.rfind("k.", 0) == 0) {
                         int keycode = std::stoi(keytype_str.substr(2));
                         if (gKey >= 0 && gKey < G13_NUM_KEYS) {
-                             actions[gKey] = std::make_unique<PassThroughAction>(keycode);
+                            if (keycode >= 1 && keycode <= KEY_MAX)
+                                actions[gKey] = std::make_unique<PassThroughAction>(keycode);
                         }
                     }
+                }
+                else if (type == "b") {
+                    std::string target;
+                    if (!std::getline(ss, target, ',')) continue;
+                    int bank = std::stoi(trim_string(target));
+                    if (bank >= 0 && bank < 3 && gKey >= 0 && gKey < G13_NUM_KEYS)
+                        bank_targets[gKey] = bank;
                 }
                 else if (type == "c") {
                     std::vector<int> codes;
                     std::string token;
                     while (std::getline(ss, token, ',')) {
                         int code = std::stoi(token);
-                        if (code < 1 || code > 255) throw std::invalid_argument("Invalid chord key");
+                        if (code < 1 || code > KEY_MAX) throw std::invalid_argument("Invalid chord key");
                         codes.push_back(code);
                     }
                     if (!codes.empty() && gKey >= 0 && gKey < G13_NUM_KEYS)
@@ -239,6 +259,7 @@ void G13::loadBindings() {
         if (action) action->set(0);
         action = std::make_unique<G13Action>();
     }
+    std::fill(std::begin(bank_targets), std::end(bank_targets), -1);
 
     // Update timestamp for Live-Reload
     struct stat file_stat;
@@ -258,6 +279,7 @@ void G13::loadBindings() {
         if (outfile.is_open()) {
              const std::string default_bindings = R"RAW(
 # Default G13 Key Bindings
+format=2
 G19=p,k.42
 G18=p,k.18
 G17=p,k.16
@@ -287,9 +309,9 @@ G35=p,k.11
 G34=p,k.72
 G33=p,k.71
 G32=p,k.62
-G31=p,k.61
-G30=p,k.60
-G29=p,k.59
+G31=b,2
+G30=b,1
+G29=b,0
 G23=p,k.58
 G22=p,k.57
 G21=p,k.57
@@ -361,9 +383,26 @@ void G13::parse_joystick(unsigned char *buf) {
 
         int codes[4] = {36, 37, 38, 39};
         for (int i = 0; i < 4; i++) {
-            if (actions[codes[i]]) actions[codes[i]]->set(pressed[i]);
+            handle_key_state(codes[i], pressed[i]);
         }
     }
+}
+
+void G13::handle_key_state(int key, int pressed) {
+    if (key < 0 || key >= G13_NUM_KEYS) return;
+    if (bank_switch_held[key]) {
+        if (!pressed) bank_switch_held[key] = false;
+        return;
+    }
+    if (pressed && bank_targets[key] >= 0) {
+        bank_switch_held[key] = true;
+        if (bindings != bank_targets[key]) {
+            bindings = bank_targets[key];
+            loadBindings();
+        }
+        return;
+    }
+    if (actions[key]) actions[key]->set(pressed);
 }
 
 void G13::parse_key(int key, unsigned char *byte) {
@@ -375,19 +414,10 @@ void G13::parse_key(int key, unsigned char *byte) {
     int pressed = actual_byte & mask;
 
     switch (key) {
-    case G13_KEY_M1: case G13_KEY_M2: case G13_KEY_M3: case G13_KEY_MR:
-        if (pressed && bindings != key - G13_KEY_M1) {
-            bindings = key - G13_KEY_M1;
-            loadBindings();
-        }
-        return;
     case 36: case 37: case 38: case 39:
         return;
     }
-
-    if (actions[key]) {
-        actions[key]->set(pressed);
-    }
+    handle_key_state(key, pressed);
 }
 
 void G13::parse_keys(unsigned char *buf) {

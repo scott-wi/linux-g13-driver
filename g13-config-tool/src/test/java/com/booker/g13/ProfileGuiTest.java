@@ -30,6 +30,20 @@ public class ProfileGuiTest {
         }
         return null;
     }
+    static JTextField textField(Container parent, String value) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JTextField field && field.getText().equals(value)) return field;
+            if (c instanceof Container container) { JTextField field = textField(container, value); if (field != null) return field; }
+        }
+        return null;
+    }
+    static JComboBox<?> layoutBox(Container parent) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JComboBox<?> box && box.getItemCount() == 3 && "M1".equals(box.getItemAt(0))) return box;
+            if (c instanceof Container container) { JComboBox<?> box = layoutBox(container); if (box != null) return box; }
+        }
+        return null;
+    }
     static void layout(Container c) { c.doLayout(); for (Component child : c.getComponents()) if (child instanceof Container next) layout(next); }
     static BufferedImage render(Container component, Path output) throws Exception {
         layout(component);
@@ -67,6 +81,11 @@ public class ProfileGuiTest {
                 ProfileSidebar sidebar = find(gui, ProfileSidebar.class);
                 JList<?> selector = find(sidebar, JList.class);
                 selector.setSelectedValue(saved, true);
+                JTextField profileName = textField(sidebar, "Example game");
+                profileName.setText("Renamed example");
+                button(sidebar, "Save details").doClick();
+                saved = store.find(saved.id());
+                ProfileImportTest.check(saved.name().equals("Renamed example"), "profile name edit was not saved");
                 ProfileImportTest.check(Configs.getConfigDir().equals(store.directory(saved)), "selection did not change editor storage");
                 ProfileImportTest.check(store.defaultProfile().id().equals("default"), "editing selection changed default");
                 ProfileImportTest.check(store.persistentProfile().isEmpty(), "editing selection enabled persistence");
@@ -82,6 +101,9 @@ public class ProfileGuiTest {
                 KeybindPanel bindings = find(gui, KeybindPanel.class);
                 bindings.setSelectedKey(Key.getKeyFor(0));
                 ProfileImportTest.check("c,42,17".equals(Configs.loadBindings(0).getProperty("G0")), "viewing chord changed binding");
+                checkbox(bindings, "Switch layout").doClick();
+                layoutBox(bindings).setSelectedIndex(2);
+                ProfileImportTest.check("b,2".equals(Configs.loadBindings(0).getProperty("G0")), "arbitrary button layout switch not saved");
                 button(sidebar, "Set as default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
                 JCheckBox persistence = checkbox(sidebar, "Persistent profile");

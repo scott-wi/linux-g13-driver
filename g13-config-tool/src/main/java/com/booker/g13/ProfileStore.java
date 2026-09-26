@@ -106,17 +106,32 @@ public final class ProfileStore {
         } finally { Files.deleteIfExists(temp); }
     }
 
-    public Profile update(Profile profile, String application, Path iconSource) throws IOException {
+    public Profile update(Profile profile, String name, String application, Path iconSource) throws IOException {
+        name = normalizeName(name);
+        for (Profile candidate : list())
+            if (!candidate.id().equals(profile.id()) && candidate.name().equalsIgnoreCase(name))
+                throw new IllegalArgumentException("Another profile already uses that name.");
         application = normalizeApplication(application);
         Path directory = directory(profile);
         Properties metadata = readMetadata(directory);
-        metadata.setProperty("name", profile.name());
+        metadata.setProperty("name", name);
         metadata.stringPropertyNames().stream().filter(key -> key.startsWith("application."))
                 .toList().forEach(metadata::remove);
         if (!application.isBlank()) metadata.setProperty("application.0", application);
         writeMetadata(directory, metadata);
         if (iconSource != null) writeIcon(directory.resolve("profile-icon.png"), iconSource);
         return find(profile.id());
+    }
+
+    public Profile update(Profile profile, String application, Path iconSource) throws IOException {
+        return update(profile, profile.name(), application, iconSource);
+    }
+
+    static String normalizeName(String value) {
+        value = value == null ? "" : value.strip().replaceAll("\\s+", " ");
+        if (value.isEmpty() || value.length() > 80 || value.chars().anyMatch(Character::isISOControl))
+            throw new IllegalArgumentException("Profile name must contain 1–80 printable characters.");
+        return value;
     }
 
     static String normalizeApplication(String value) {

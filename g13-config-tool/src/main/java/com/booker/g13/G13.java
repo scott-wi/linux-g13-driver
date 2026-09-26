@@ -2,9 +2,9 @@ package com.booker.g13;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.Set;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -35,24 +35,12 @@ public class G13 extends JPanel {
 	 */
 	private static final int MAX_MACROS = 200;
 
-	// Named constants for the G13 keycodes of the M1, M2, M3, and MR buttons.
-    private static final int BINDING_KEY_M1 = 29;
-    private static final int BINDING_KEY_M2 = 30;
-    private static final int BINDING_KEY_M3 = 31;
-    private static final int BINDING_KEY_MR = 32;
-    
-    /**
-     * A set containing the keycodes for the binding switch keys (M1, M2, M3, MR).
-     * Used for quick lookups to check if a pressed key should switch the current binding profile.
-     */
-    private static final Set<Integer> BINDING_SWITCH_KEYS = Set.of(
-            BINDING_KEY_M1, BINDING_KEY_M2, BINDING_KEY_M3, BINDING_KEY_MR
-    );
-	
 	// UI Components
 	private final ImageMap g13Label = new ImageMap(); // The interactive G13 keypad image.
 	private final KeybindPanel keybindPanel = new KeybindPanel(); // Panel for editing key bindings.
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
+	private final JComboBox<String> layoutSelector = new JComboBox<>(new String[]{"M1", "M2", "M3"});
+	private boolean changingLayout;
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
     private ProfileSidebar profileSidebar;
@@ -88,14 +76,7 @@ public class G13 extends JPanel {
 					return;
 				}
 				
-				// Check if the selected key is one of the binding switch keys (M1-M3, MR).
-				if (BINDING_SWITCH_KEYS.contains(key.getG13KeyCode())) {
-					// Switch the active binding profile.
-					mapBindings(key.getG13KeyCode() - BINDING_KEY_M1);
-				} else {
-					// A regular key was selected, pass it to the keybind panel for editing.
-					keybindPanel.setSelectedKey(key);
-				}
+				keybindPanel.setSelectedKey(key);
 			}
 
 			@Override
@@ -122,6 +103,13 @@ public class G13 extends JPanel {
         // --- UI Assembly ---
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(UiTheme.sectionBorder("G13 Keypad"));
+		JPanel layoutBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+		layoutBar.add(new JLabel("Button layout"));
+		layoutBar.add(layoutSelector);
+		layoutSelector.addActionListener(event -> {
+			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
+		});
+		p.add(layoutBar, BorderLayout.NORTH);
 		p.add(g13Label, BorderLayout.CENTER);
 		add(p, BorderLayout.CENTER);
 		
@@ -219,9 +207,13 @@ public class G13 extends JPanel {
 	 * Applies a specific binding profile to the keypad UI.
 	 * This method updates the visual representation of each key on the ImageMap
 	 * to show what it is currently mapped to.
-	 * @param bindingNum The index of the binding profile to apply (0-3).
+	 * @param bindingNum The index of the editable button layout to apply (0-2).
 	 */
 	private void mapBindings(int bindingNum) {
+		if (bindingNum < 0 || bindingNum > 2) return;
+		changingLayout = true;
+		layoutSelector.setSelectedIndex(bindingNum);
+		changingLayout = false;
 		keybindPanel.setSelectedKey(null); // Deselect any key.
 		keybindPanel.setBindings(bindingNum, keyBindings[bindingNum]);
 		
@@ -255,7 +247,7 @@ public class G13 extends JPanel {
                         k.setMappedValue("Chord: " + java.util.Arrays.stream(parts).skip(1)
                             .map(Integer::parseInt).map(JavaToLinuxKeymapping::cKeyCodeToString)
                             .collect(java.util.stream.Collectors.joining(" + ")));
-                    } else if ("m".equals(type)) { // Macro
+					} else if ("m".equals(type)) { // Macro
 						if (parts.length >= 3) {
 							int macroNum = Integer.parseInt(parts[1]);
 							if (macroNum >= 0 && macroNum < macros.length) {
@@ -265,6 +257,9 @@ public class G13 extends JPanel {
 								k.setRepeats(repeats ? "Yes" : "No");
 							}
 						}
+					} else if ("b".equals(type)) {
+						int bank = Integer.parseInt(parts[1]);
+						if (bank >= 0 && bank < 3) k.setMappedValue("Switch layout: M" + (bank + 1));
 					}
 				} catch (NumberFormatException e) {
 					// Handle cases where the number in the property is malformed.

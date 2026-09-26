@@ -33,6 +33,7 @@ public class KeybindPanel extends JPanel {
 	// --- UI Components for Passthrough Binding ---
 	private final JCheckBox passthroughButton = new JCheckBox("Pass through");
 	private final JTextField passthroughText = new JTextField();
+	private final JButton chooseKeyButton = new JButton("Choose…");
 	private final ButtonGroup buttonGroup = new ButtonGroup();
     private int passthroughCode = 0; // The Linux keycode for the passthrough key.
 	
@@ -40,12 +41,14 @@ public class KeybindPanel extends JPanel {
 	private final JCheckBox macroButton = new JCheckBox("Macro");
 	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
 	private final JCheckBox repeatsCheckBox = new JCheckBox("Auto repeat");
+	private final JCheckBox bankButton = new JCheckBox("Switch layout");
+	private final JComboBox<String> bankSelectionBox = new JComboBox<>(new String[]{"M1", "M2", "M3"});
 	
 	// --- UI Components for Screen Color ---
 	private final JButton colorChangeButton = new JButton("Choose screen color");
 	
 	// --- State Variables ---
-	private int bindingsId = -1; // The ID of the currently loaded binding profile (0-3).
+	private int bindingsId = -1; // The ID of the currently loaded button layout (0-2).
 	private Properties bindings; // The properties for the current binding profile.
 	private Properties[] macros; // All available macros, for the dropdown list.
 	private Key key = null; // The currently selected key being edited.
@@ -76,6 +79,7 @@ public class KeybindPanel extends JPanel {
 
 		buttonGroup.add(passthroughButton);
 		buttonGroup.add(macroButton);
+		buttonGroup.add(bankButton);
 		
 		// Disable focus traversal for the passthrough text field to capture all key events.
 		passthroughText.setFocusTraversalKeysEnabled(false);
@@ -92,7 +96,10 @@ public class KeybindPanel extends JPanel {
 		c.gridx = 1;
 		c.weightx = 1;
 		c.insets = new Insets(0, 0, 10, 0);
-		grid.add(passthroughText, c);
+		JPanel keyControl = new JPanel(new BorderLayout(8, 0));
+		keyControl.add(passthroughText, BorderLayout.CENTER);
+		keyControl.add(chooseKeyButton, BorderLayout.EAST);
+		grid.add(keyControl, c);
 		c.gridx = 0;
 		c.gridy = 1;
 		c.weightx = 0;
@@ -103,8 +110,17 @@ public class KeybindPanel extends JPanel {
 		c.insets = new Insets(0, 0, 8, 0);
 		grid.add(macroSelectionBox, c);
 		c.gridy = 2;
-		c.insets = new Insets(0, 0, 0, 0);
+		c.insets = new Insets(0, 0, 10, 0);
 		grid.add(repeatsCheckBox, c);
+		c.gridx = 0;
+		c.gridy = 3;
+		c.weightx = 0;
+		c.insets = new Insets(0, 0, 0, 10);
+		grid.add(bankButton, c);
+		c.gridx = 1;
+		c.weightx = 1;
+		c.insets = new Insets(0, 0, 0, 0);
+		grid.add(bankSelectionBox, c);
 		
 		// Use a custom renderer to display macro names in the combo box.
 		macroSelectionBox.setRenderer(new MacroListCellRenderer());
@@ -121,6 +137,9 @@ public class KeybindPanel extends JPanel {
 		macroSelectionBox.addActionListener(e -> saveBindings());
 		repeatsCheckBox.addActionListener(e -> saveBindings());
 		passthroughButton.addActionListener(e -> updateComponentStateAndSave());
+		bankButton.addActionListener(e -> updateComponentStateAndSave());
+		bankSelectionBox.addActionListener(e -> saveBindings());
+		chooseKeyButton.addActionListener(e -> chooseLinuxKey());
 
 		passthroughText.addKeyListener(new KeyAdapter() {
 			@Override
@@ -141,13 +160,30 @@ public class KeybindPanel extends JPanel {
      */
     private void updateComponentStateAndSave() {
         boolean chord = key != null && bindings != null && bindings.getProperty("G" + key.getG13KeyCode(), "").startsWith("c,")
-                && !passthroughButton.isSelected() && !macroButton.isSelected();
+                && !passthroughButton.isSelected() && !macroButton.isSelected() && !bankButton.isSelected();
         passthroughText.setEnabled(passthroughButton.isSelected() || chord);
         passthroughText.setEditable(passthroughButton.isSelected());
+        chooseKeyButton.setEnabled(passthroughButton.isSelected());
         macroSelectionBox.setEnabled(macroButton.isSelected());
         repeatsCheckBox.setEnabled(macroButton.isSelected());
+        bankSelectionBox.setEnabled(bankButton.isSelected());
         saveBindings();
     }
+
+	private void chooseLinuxKey() {
+		JComboBox<JavaToLinuxKeymapping.KeyMapping> choices = new JComboBox<>(
+				JavaToLinuxKeymapping.mappings().toArray(JavaToLinuxKeymapping.KeyMapping[]::new));
+		choices.setMaximumRowCount(18);
+		JavaToLinuxKeymapping.KeyMapping current = JavaToLinuxKeymapping.C_CODE_TO_DATA.get(passthroughCode);
+		if (current != null) choices.setSelectedItem(current);
+		if (JOptionPane.showConfirmDialog(this, choices, "Choose keyboard, media, or mouse input",
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
+		JavaToLinuxKeymapping.KeyMapping selected = (JavaToLinuxKeymapping.KeyMapping) choices.getSelectedItem();
+		if (selected == null) return;
+		passthroughCode = selected.linuxCode();
+		passthroughText.setText(selected.name());
+		saveBindings();
+	}
 	
 	/**
 	 * Populates the macro selection combo box with the available macros.
@@ -167,7 +203,7 @@ public class KeybindPanel extends JPanel {
 	
 	/**
 	 * Loads a specific binding profile into the panel.
-	 * @param propertyNum The ID of the binding profile (0-3).
+	 * @param propertyNum The ID of the editable button layout (0-2).
 	 * @param bindings The Properties object for the profile.
 	 */
 	public void setBindings(final int propertyNum, final Properties bindings) {
@@ -206,7 +242,8 @@ public class KeybindPanel extends JPanel {
 		
 		final boolean isKeySelected = (key != null);
 		// Enable or disable all controls based on whether a key is selected.
-		final JComponent[] all = { colorChangeButton, macroButton, macroSelectionBox, passthroughButton, passthroughText, repeatsCheckBox };
+		final JComponent[] all = { colorChangeButton, macroButton, macroSelectionBox, passthroughButton,
+				passthroughText, chooseKeyButton, repeatsCheckBox, bankButton, bankSelectionBox };
 		for (final JComponent c : all) {
 			c.setEnabled(isKeySelected);
 		}
@@ -239,6 +276,9 @@ public class KeybindPanel extends JPanel {
 				macroSelectionBox.setSelectedIndex(macroNum);
 				boolean repeats = (parts.length >= 3) && (Integer.parseInt(parts[2]) != 0);
 				repeatsCheckBox.setSelected(repeats);
+            } else if ("b".equals(type)) {
+				bankButton.setSelected(true);
+				bankSelectionBox.setSelectedIndex((parts.length >= 2) ? Integer.parseInt(parts[1]) : 0);
             } else {
                 buttonGroup.clearSelection();
                 passthroughText.setText("Unassigned");
@@ -323,6 +363,11 @@ public class KeybindPanel extends JPanel {
 				key.setMappedValue("Macro: " + macroName);
 				key.setRepeats(repeats == 1 ? "Yes" : "No");
 			}
+		} else if (bankButton.isSelected()) {
+			int bank = bankSelectionBox.getSelectedIndex();
+			bindings.put(prop, "b," + bank);
+			key.setMappedValue("Switch layout: M" + (bank + 1));
+			key.setRepeats("N/A");
 		} else {
 			// If neither button is selected, the key is unassigned.
 			bindings.remove(prop);

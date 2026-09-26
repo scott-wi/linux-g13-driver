@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
     std::ofstream(root + "/persistent-profile") << id << '\n';
     {
         G13 device(nullptr);
-        std::ofstream(dir + "/bindings-0.properties") << "G0=p,k.31\n";
+        std::ofstream(dir + "/bindings-0.properties") << "format=2\nG0=p,k.31\nG30=b,1\n";
         device.loadBindings();
         device.actions[0]->set(1);
         assert(contains(31, 1));
@@ -95,12 +95,28 @@ int main(int argc, char** argv) {
         device.parse_key(G13_KEY_M2, report);
         assert(device.bindings == 1);
         assert(contains(31, 0));
+        unsigned char released[5] = {};
+        device.parse_key(G13_KEY_M2, released);
         {
             std::lock_guard<std::mutex> lock(eventsMutex);
             events.clear();
         }
         device.actions[0]->set(1);
         assert(!contains(31, 1)); // absent entry must not survive bank change
+        std::ofstream(dir + "/bindings-1.properties") << "format=2\nG30=p,k.272\nG0=b,2\n";
+        device.loadBindings();
+        device.parse_key(G13_KEY_M2, report);
+        device.parse_key(G13_KEY_M2, released);
+        assert(device.bindings == 1 && contains(272, 1) && contains(272, 0)); // M2 can be a mouse button
+        unsigned char g1[5] = {};
+        g1[G13_KEY_G1 / 8] = 1 << (G13_KEY_G1 % 8);
+        device.parse_key(G13_KEY_G1, g1);
+        assert(device.bindings == 2); // any physical key can select a layout
+        std::ofstream(dir + "/bindings-2.properties") << "format=2\nG1=p,k.164\n";
+        device.loadBindings();
+        device.actions[1]->set(1);
+        device.actions[1]->set(0);
+        assert(contains(164, 1) && contains(164, 0)); // media key range is accepted
         std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
         std::ofstream(root + "/persistent-profile") << "default\n";
         device.last_profile_scan = 0;

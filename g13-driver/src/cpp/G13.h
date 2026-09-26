@@ -27,6 +27,8 @@ private:
     stick_mode_t          stick_mode;    
     int                   stick_keys[4];   
     int                   bindings;      
+    int                   bank_targets[G13_NUM_KEYS];
+    bool                  bank_switch_held[G13_NUM_KEYS];
 
     unsigned char lcd_buffer[G13_LCD_BUFFER_SIZE];
 
@@ -42,6 +44,7 @@ private:
     void parse_bindings_from_stream(std::istream& stream);
     int  read();
     void parse_joystick(unsigned char *buf);
+    void handle_key_state(int key, int pressed);
     void parse_key(int key, unsigned char *byte);
     void parse_keys(unsigned char *buf);
 
