@@ -96,6 +96,50 @@ public final class ProfileStore {
     public void setPersistent(Profile profile) throws IOException { writeMarker("persistent-profile", profile.id()); }
     public void clearPersistent() throws IOException { Files.deleteIfExists(root.resolve("persistent-profile")); }
 
+    public Profile create(String requestedName) throws IOException {
+        String name = uniqueName(normalizeName(requestedName));
+        Profile profile = new Profile(UUID.randomUUID().toString(), name, null, List.of());
+        Files.createDirectories(root.resolve("profiles"));
+        Path pending = Files.createTempDirectory(root.resolve("profiles"), ".new-");
+        try {
+            for (int i = 0; i < 4; i++) {
+                Properties bindings = new Properties();
+                bindings.setProperty("color", "255,255,255");
+                bindings.setProperty("format", "2");
+                for (String[] binding : Configs.defaultBindings)
+                    bindings.setProperty(binding[0], "p,k." + binding[1]);
+                bindings.setProperty("G29", "b,0");
+                bindings.setProperty("G30", "b,1");
+                bindings.setProperty("G31", "b,2");
+                write(pending.resolve("bindings-" + i + ".properties"), bindings);
+            }
+            for (int i = 0; i < 200; i++) {
+                Properties macro = new Properties();
+                macro.setProperty("id", Integer.toString(i));
+                macro.setProperty("name", i < Configs.DEFAULT_MACROS_COUNT ? Configs.defaultMacros[i][0] : "");
+                macro.setProperty("sequence", i < Configs.DEFAULT_MACROS_COUNT ? Configs.defaultMacros[i][1] : "");
+                write(pending.resolve("macro-" + i + ".properties"), macro);
+            }
+            Properties metadata = new Properties();
+            metadata.setProperty("name", name);
+            write(pending.resolve("profile.properties"), metadata);
+            moveAtomically(pending, directory(profile));
+            return find(profile.id());
+        } finally { deleteTree(pending); }
+    }
+
+    public void delete(Profile profile) throws IOException {
+        if (profile == null || profile.id().equals("default"))
+            throw new IllegalArgumentException("The existing-bindings profile cannot be deleted.");
+        Path directory = directory(profile);
+        if (!Files.isDirectory(directory)) throw new IOException("Profile is missing.");
+        Path discarded = directory.resolveSibling(".delete-" + profile.id());
+        moveAtomically(directory, discarded);
+        if (readMarker("default-profile").equals(profile.id())) setDefault(DEFAULT);
+        if (readMarker("persistent-profile").equals(profile.id())) clearPersistent();
+        deleteTree(discarded);
+    }
+
     private void writeMarker(String name, String value) throws IOException {
         if (exact(value).isEmpty()) throw new IOException("Profile is incomplete or missing.");
         Files.createDirectories(root);
@@ -134,6 +178,16 @@ public final class ProfileStore {
         return value;
     }
 
+    private String uniqueName(String requested) throws IOException {
+        Set<String> names = new HashSet<>();
+        for (Profile profile : list()) names.add(profile.name().toLowerCase(Locale.ROOT));
+        if (!names.contains(requested.toLowerCase(Locale.ROOT))) return requested;
+        for (int suffix = 2; ; suffix++) {
+            String candidate = requested + " (" + suffix + ")";
+            if (!names.contains(candidate.toLowerCase(Locale.ROOT))) return candidate;
+        }
+    }
+
     static String normalizeApplication(String value) {
         value = value == null ? "" : value.strip().replace('\\', '/');
         int slash = value.lastIndexOf('/');
@@ -169,10 +223,7 @@ public final class ProfileStore {
     }
 
     public Profile save(LogitechProfileImporter.Result result) throws IOException {
-        String name = result.name();
-        Set<String> names = new HashSet<>();
-        for (Profile profile : list()) names.add(profile.name());
-        for (int i = 2; names.contains(name); i++) name = result.name() + " (" + i + ")";
+        String name = uniqueName(normalizeName(result.name()));
         Profile profile = new Profile(UUID.randomUUID().toString(), name, null, List.of());
         Files.createDirectories(root.resolve("profiles"));
         Path pending = Files.createTempDirectory(root.resolve("profiles"), ".import-");
@@ -190,10 +241,13 @@ public final class ProfileStore {
             write(pending.resolve("profile.properties"), metadata);
             Files.move(pending, directory(profile), StandardCopyOption.ATOMIC_MOVE);
             return find(profile.id());
-        } finally {
-            if (Files.exists(pending)) try (var files = Files.walk(pending)) {
-                for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(file);
-            }
+        } finally { deleteTree(pending); }
+    }
+
+    private static void deleteTree(Path directory) throws IOException {
+        if (!Files.exists(directory)) return;
+        try (var files = Files.walk(directory)) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(file);
         }
     }
 

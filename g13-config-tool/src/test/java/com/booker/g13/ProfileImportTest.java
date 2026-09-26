@@ -7,6 +7,11 @@ import java.util.*;
 /** Dependency-free integration tests; run through make test. */
 public class ProfileImportTest {
     static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
+    static Properties readProperties(Path path) throws IOException {
+        Properties result = new Properties();
+        try (var input = Files.newInputStream(path)) { result.load(input); }
+        return result;
+    }
     static Path fixture;
     static String export(String macros, String assignments) {
         return "<profiles xmlns='http://www.logitech.com/Cassandra/2010.7/Profile'><profile name='Test game' guid='source-id'>"
@@ -66,6 +71,21 @@ public class ProfileImportTest {
         var saved = store.save(result);
         var duplicate = store.save(result);
         check(!saved.id().equals(duplicate.id()) && duplicate.name().equals("Test game (2)"), "duplicate overwrote profile");
+        var created = store.create("Fresh profile");
+        var createdDuplicate = store.create("fresh profile");
+        check(createdDuplicate.name().equals("fresh profile (2)"), "new profile names are not made unique");
+        check("2".equals(readProperties(store.directory(created).resolve("bindings-0.properties")).getProperty("format"))
+                && "b,1".equals(readProperties(store.directory(created).resolve("bindings-2.properties")).getProperty("G30")),
+                "new profile defaults are incomplete");
+        store.setDefault(created);
+        store.setPersistent(created);
+        store.delete(created);
+        check(store.list().stream().noneMatch(profile -> profile.id().equals(created.id())), "deleted profile is still listed");
+        check(store.defaultProfile().id().equals("default") && store.persistentProfile().isEmpty(),
+                "deleting a selected profile did not clear its selection markers");
+        try { store.delete(ProfileStore.DEFAULT); throw new AssertionError("legacy default profile deleted"); }
+        catch (IllegalArgumentException expected) { }
+        store.delete(createdDuplicate);
         check(Arrays.equals(previous, Files.readAllBytes(legacy)), "legacy configuration overwritten");
         check(store.defaultProfile().id().equals("default"), "import changed default implicitly");
         check(store.persistentProfile().isEmpty(), "import enabled persistence implicitly");
