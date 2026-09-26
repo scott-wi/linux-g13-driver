@@ -156,9 +156,22 @@ public class ProfileGuiTest {
         for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
     }
 
-    static void checkMacroDropdownClicks() {
+    static int checkDropdownUis(Container parent) {
+        int count = 0;
+        for (Component child : parent.getComponents()) {
+            if (child instanceof JComboBox<?> combo) {
+                ProfileImportTest.check(combo.getUI() instanceof ClickComboBoxUI,
+                        "a form dropdown still uses mouse-down popup opening");
+                count++;
+            }
+            if (child instanceof Container container) count += checkDropdownUis(container);
+        }
+        return count;
+    }
+
+    static void checkDropdownClicks() {
         // Exercise the installed popup listener without creating a desktop popup or grabbing input.
-        class ProbeCombo extends ClickComboBox<Properties> {
+        class ProbeCombo extends JComboBox<Properties> {
             boolean popup;
             @Override public void setPopupVisible(boolean visible) { popup = visible; }
             @Override public boolean isPopupVisible() { return popup; }
@@ -174,6 +187,12 @@ public class ProfileGuiTest {
             UiTheme.apply(dark);
             SwingUtilities.updateComponentTreeUI(combo);
             combo.doLayout();
+            ProfileImportTest.check(combo.getUI() instanceof ClickComboBoxUI, "standard dropdown did not inherit shared click UI");
+            JComboBox<JavaToLinuxKeymapping.KeyMapping> picker = new JComboBox<>(
+                    JavaToLinuxKeymapping.mappings().toArray(JavaToLinuxKeymapping.KeyMapping[]::new));
+            ProfileImportTest.check(picker.getUI() instanceof ClickComboBoxUI, "new key-picker dropdown did not inherit shared UI");
+            ProfileImportTest.check(checkDropdownUis(new JFileChooser(Configs.getRootDir().toFile())) > 0,
+                    "file dialog dropdown coverage is missing");
             Component arrow = find(combo, JButton.class);
             for (Component target : java.util.List.of(combo, arrow)) {
                 Point point = new Point(target.getWidth() / 2, target.getHeight() / 2);
@@ -181,12 +200,12 @@ public class ProfileGuiTest {
                 target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_PRESSED,
                         0, java.awt.event.InputEvent.BUTTON1_DOWN_MASK, point.x, point.y, 1, false,
                         java.awt.event.MouseEvent.BUTTON1));
-                ProfileImportTest.check(!combo.isPopupVisible(), "macro dropdown opened before click completed");
+                ProfileImportTest.check(!combo.isPopupVisible(), "dropdown opened before click completed");
                 target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_RELEASED,
                         0, 0, point.x, point.y, 1, false, java.awt.event.MouseEvent.BUTTON1));
-                ProfileImportTest.check(!combo.isPopupVisible(), "macro dropdown opened on release");
+                ProfileImportTest.check(!combo.isPopupVisible(), "dropdown opened on release");
                 previewClick(target, point, 1, java.awt.event.MouseEvent.BUTTON1);
-                ProfileImportTest.check(combo.isPopupVisible(), "macro dropdown did not stay open after completed click");
+                ProfileImportTest.check(combo.isPopupVisible(), "dropdown did not stay open after completed click");
                 combo.setSelectedIndex(0);
                 var popup = (javax.swing.plaf.basic.BasicComboPopup) combo.getUI().getAccessibleChild(combo, 0);
                 JList<?> items = popup.getList();
@@ -196,6 +215,19 @@ public class ProfileGuiTest {
                 for (var listener : items.getMouseListeners()) listener.mouseReleased(release);
                 ProfileImportTest.check(combo.getSelectedItem() == second && !combo.isPopupVisible(),
                         "choosing a popup item did not select the macro and close the menu");
+                combo.setEnabled(false);
+                target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_PRESSED,
+                        0, java.awt.event.InputEvent.BUTTON1_DOWN_MASK, point.x, point.y, 1, false,
+                        java.awt.event.MouseEvent.BUTTON1));
+                previewClick(target, point, 1, java.awt.event.MouseEvent.BUTTON1);
+                ProfileImportTest.check(!combo.isPopupVisible(), "disabled dropdown opened");
+                combo.setEnabled(true);
+                combo.setPopupVisible(true);
+                Action escape = combo.getActionMap().get("hidePopup");
+                ProfileImportTest.check(escape != null && combo.getActionMap().get("selectNext") != null,
+                        "standard keyboard dropdown actions were lost");
+                escape.actionPerformed(new java.awt.event.ActionEvent(combo, 0, "hidePopup"));
+                ProfileImportTest.check(!combo.isPopupVisible(), "Escape no longer dismisses dropdowns");
             }
         }
         UiTheme.apply(false);
@@ -373,7 +405,7 @@ public class ProfileGuiTest {
     public static void main(String[] args) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
-                checkMacroDropdownClicks();
+                checkDropdownClicks();
                 UiTheme.apply(false);
                 Properties validState = new Properties();
                 validState.setProperty("profile", "default");
@@ -536,6 +568,7 @@ public class ProfileGuiTest {
                 ProfileImportTest.check(tooltip.contains("A very long macro name") && tooltip.contains("G1</b>"),
                         "hover description lost the full binding or physical key name");
                 gui.setSize(gui.getPreferredSize());
+                ProfileImportTest.check(checkDropdownUis(gui) == 6, "main form dropdown coverage changed");
                 BufferedImage light = render(gui, Path.of(args[0]));
                 checkbox(sidebar, "Dark mode").doClick();
                 ProfileImportTest.check(UiTheme.isDark(), "dark-mode control did not apply the theme");
@@ -543,6 +576,7 @@ public class ProfileGuiTest {
                         "dark-mode preference was not persisted");
                 SwingUtilities.updateComponentTreeUI(gui);
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
+                ProfileImportTest.check(checkDropdownUis(gui) == 6, "theme switch lost form-wide dropdown handling");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
                 checkHardwareHighlights(imageMap, Path.of(args[0]).resolveSibling("g13-hardware-pressed.png"));
