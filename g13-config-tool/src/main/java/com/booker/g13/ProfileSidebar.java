@@ -175,6 +175,7 @@ public final class ProfileSidebar extends JPanel {
             if (enabled) store.setPersistent(profile);
             else store.clearPersistent();
             refresh(profile);
+            if (enabled) listener.selected(profile);
         } catch (IOException error) { listener.error(error); }
     }
 

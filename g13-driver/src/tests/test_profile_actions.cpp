@@ -124,14 +124,14 @@ int main(int argc, char** argv) {
         device.actions[35]->set(1);
         device.actions[35]->set(0);
         assert(contains(289, 1) && contains(289, 0));
-        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
+        std::ofstream(root + "/bindings-2.properties") << "format=2\nG0=p,k.32\n";
         std::ofstream(root + "/persistent-profile") << "default\n";
         device.last_profile_scan = 0;
         device.check_for_config_update();
-        assert(device.bindings == 0 && device.profile_directory == root);
+        assert(device.bindings == 2 && device.profile_directory == root);
         device.actions[0]->set(1);
         assert(contains(32, 1));
-        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.33\n";
+        std::ofstream(root + "/bindings-2.properties") << "format=2\nG0=p,k.33\n";
         device.check_for_config_update();
         assert(contains(32, 0));
         device.actions[0]->set(1);

@@ -146,12 +146,16 @@ public class ProfileGuiTest {
                         "new and import actions are not below the profile list");
                 ProfileImportTest.check(checkbox(sidebar, "Persistent profile") == null,
                         "persistent control still appears in profile details");
+                JComboBox<?> editorLayout = layoutBox(gui);
+                editorLayout.setSelectedIndex(2);
                 JPopupMenu profileMenu = sidebar.profileMenu(saved);
                 menuItem(profileMenu, "Set Default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
                 JCheckBoxMenuItem persistence = (JCheckBoxMenuItem) menuItem(sidebar.profileMenu(saved), "Set Persistent");
                 persistence.doClick();
                 ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
+                ProfileImportTest.check(editorLayout.getSelectedIndex() == 2,
+                        "persistent profile selection unexpectedly reset the editing layout");
                 ProfileImportTest.check(menuItem(sidebar.profileMenu(store.find("default")), "Delete").isEnabled() == false,
                         "existing-bindings profile can be deleted");
                 ProfileImportTest.check(menuItem(sidebar.profileMenu(saved), "Delete").isEnabled(),

@@ -116,7 +116,10 @@ void G13::check_for_config_update() {
         last_profile_scan = now;
         const std::string selected = ConfigPath::getActiveProfileDir();
         if (selected != profile_directory) {
-            bindings = 0;
+            // M1-M3 are device-wide mode buttons. Keep the selected mode when
+            // automatic or persistent profile selection changes the profile;
+            // silently returning to M1 makes the illuminated/expected mode and
+            // the bindings emitted by the driver disagree.
             loadBindings();
             return;
         }

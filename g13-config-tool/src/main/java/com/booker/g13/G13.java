@@ -107,7 +107,7 @@ public class G13 extends JPanel {
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(UiTheme.sectionBorder("G13 Keypad"));
 		JPanel layoutBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-		layoutBar.add(new JLabel("Button layout"));
+		layoutBar.add(new JLabel("Editing layout"));
 		layoutBar.add(layoutSelector);
 		layoutSelector.addActionListener(event -> {
 			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
@@ -130,6 +130,7 @@ public class G13 extends JPanel {
 
     private void selectProfile(ProfileStore.Profile profile) {
         var previous = editingProfile;
+        int selectedLayout = layoutSelector.getSelectedIndex();
         Configs.selectProfile(profileStore.directory(profile));
         if (!loadConfiguration()) {
             Configs.selectProfile(profileStore.directory(previous));
@@ -139,7 +140,7 @@ public class G13 extends JPanel {
         editingProfile = profile;
         keybindPanel.setMacros(macros);
         macroEditorPanel.setMacros(macros);
-        mapBindings(0);
+        mapBindings(selectedLayout < 0 ? 0 : selectedLayout);
         repaint();
     }
 
