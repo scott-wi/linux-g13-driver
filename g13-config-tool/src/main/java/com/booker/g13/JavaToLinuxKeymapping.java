@@ -170,7 +170,8 @@ public class JavaToLinuxKeymapping {
             new KeyMapping("Mouse — Extra button", 276, -1),
             new KeyMapping("Mouse — Forward", 277, -1),
             new KeyMapping("Mouse — Back", 278, -1),
-            new KeyMapping("Mouse — Task", 279, -1)
+            new KeyMapping("Mouse — Task", 279, -1),
+            new KeyMapping("Gamepad — Joystick button", 289, -1)
     );
 
     /** Map for quick lookup from Linux keycode to KeyMapping data. */

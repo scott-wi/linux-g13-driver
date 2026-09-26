@@ -52,7 +52,9 @@ make install-user    # Install the built release for this user
 For quick testing of the current checkout on a system-wide managed installation,
 run `./local-make.sh` as your desktop user. It builds the driver and Java GUI,
 installs the local release through `sudo`, refreshes device access, and restarts
-the user service. Close and reopen the configuration window afterward.
+the user service. Close and reopen the configuration window afterward. Per-event
+input logging is disabled by default; use `./local-make.sh --debug-input` when a
+trace is needed.
 
 To enable or restart the user service as part of user deployment, use
 `make install-user DEPLOY_FLAGS=--activate`.
@@ -169,3 +171,5 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Profiles appear with their icons in a list on the left. Add a Linux executable name for automatic selection, designate one fallback profile as Default, or mark one Persistent to suspend automatic changes. The interface includes a persistent light/dark appearance setting, and the interactive keypad scales with the window while keeping its hit regions aligned. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.
 
 Profile names are editable. Use each row's three-dot menu to set its selection policy or delete a named profile; **New…** and **Import…** sit below the profile list. Each profile has three button layouts, M1–M3. A layout-switch action can be assigned to any G13 control, including the physical M keys; those keys can instead send an ordinary keyboard, mouse, media, or system input. Existing installations migrate the former fixed M1–M3 behavior to explicit layout-switch assignments when opened in the updated GUI.
+
+Windows imports support Logitech text blocks as editable Text macros, M1–M3 function actions as layout switches, and joystick actions as a per-layout analog joystick mode. Text macros type printable US-keyboard characters, tabs, and Enter, with an editable delay between characters.

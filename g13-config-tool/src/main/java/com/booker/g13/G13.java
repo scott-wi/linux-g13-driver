@@ -40,6 +40,8 @@ public class G13 extends JPanel {
 	private final KeybindPanel keybindPanel = new KeybindPanel(); // Panel for editing key bindings.
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
 	private final JComboBox<String> layoutSelector = new JComboBox<>(new String[]{"M1", "M2", "M3"});
+	private final JLabel activeLayout = new JLabel("Device: checking…");
+	private final Timer stateTimer = new Timer(500, event -> refreshDriverState());
 	private boolean changingLayout;
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
@@ -107,8 +109,10 @@ public class G13 extends JPanel {
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(UiTheme.sectionBorder("G13 Keypad"));
 		JPanel layoutBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-		layoutBar.add(new JLabel("Button layout"));
+		layoutBar.add(new JLabel("Editing layout"));
 		layoutBar.add(layoutSelector);
+		activeLayout.setToolTipText("The M layout currently selected on the physical G13");
+		layoutBar.add(activeLayout);
 		layoutSelector.addActionListener(event -> {
 			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
 		});
@@ -128,8 +132,31 @@ public class G13 extends JPanel {
 		profileSidebar.refresh(editingProfile);
 	}
 
+	@Override public void addNotify() {
+		super.addNotify();
+		refreshDriverState();
+		stateTimer.start();
+	}
+
+	@Override public void removeNotify() {
+		stateTimer.stop();
+		super.removeNotify();
+	}
+
+	private void refreshDriverState() {
+		var state = DriverState.read();
+		if (state.isEmpty()) {
+			activeLayout.setText("Device: unavailable");
+			return;
+		}
+		var snapshot = state.get();
+		String profile = snapshot.profileId().equals(editingProfile.id()) ? "active" : "another profile";
+		activeLayout.setText("Device: M" + (snapshot.layout() + 1) + " · " + profile);
+	}
+
     private void selectProfile(ProfileStore.Profile profile) {
         var previous = editingProfile;
+        int selectedLayout = layoutSelector.getSelectedIndex();
         Configs.selectProfile(profileStore.directory(profile));
         if (!loadConfiguration()) {
             Configs.selectProfile(profileStore.directory(previous));
@@ -139,7 +166,7 @@ public class G13 extends JPanel {
         editingProfile = profile;
         keybindPanel.setMacros(macros);
         macroEditorPanel.setMacros(macros);
-        mapBindings(0);
+        mapBindings(selectedLayout < 0 ? 0 : selectedLayout);
         repaint();
     }
 
@@ -155,7 +182,7 @@ public class G13 extends JPanel {
         try {
             var result = LogitechProfileImporter.read(chooser.getSelectedFile().toPath());
             String summary = result.name() + "\n" + result.importedAssignments()
-                    + " assignments across M1–M3; " + result.macros().size() + " key macros.\n\n"
+                    + " assignments across M1–M3; " + result.macros().size() + " macros.\n\n"
                     + String.join("\n", result.warnings())
                     + "\n\nImport as a separate profile? Add a Linux executable afterward for automatic selection.";
             JTextArea preview = new JTextArea(summary, 18, 65);
@@ -231,6 +258,10 @@ public class G13 extends JPanel {
 			// Set default display values.
 			k.setMappedValue("Unassigned");
 			k.setRepeats("N/A");
+			if (i >= 36 && i <= 39 && "absolute".equals(keyBindings[bindingNum].getProperty("stick"))) {
+				k.setMappedValue("Analog joystick");
+				continue;
+			}
 			
 			if (val != null && !val.isBlank()) {
 				// The value string is parsed to determine the binding type and value.

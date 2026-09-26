@@ -5,7 +5,7 @@ set -euo pipefail
 fail() { printf 'G13: %s\n' "$*" >&2; exit 1; }
 usage() {
     cat <<'HELP'
-Usage: bash install.sh [--tag preview-TAG] [--scope system|user] [--yes] [--check]
+Usage: bash install.sh [--tag preview-TAG] [--scope system|user] [--yes] [--check] [--debug-input]
 
 Install/upgrade a Fedora 44 x86_64 preview without building source.
 Default: newest main-branch preview; detect an existing managed user installation,
@@ -13,6 +13,7 @@ otherwise install system-wide. Run as your desktop user, without sudo.
   --tag     Select a particular main or manually published branch preview.
   --yes     Allow DNF to install missing prerequisites without its confirmation.
   --check   Check platform/runtime dependencies only; make no changes.
+  --debug-input  Enable per-event logs when installing a debug-compiled preview.
 
 Private repository: export GH_TOKEN (fine-grained Contents: read access), or use
 an existing authenticated gh session. Tokens are never persisted in installation.
@@ -130,13 +131,15 @@ check_service_layout() {
 activate_release() {
     local expected actual pid libraries variable
     local -a display_vars=()
+    local -a installer_flags=()
+    $debug_input && installer_flags+=(--debug-input)
     libraries=$(ldd "$release/libexec/linux-g13-driver" 2>&1) || fail "Cannot resolve native dependencies: $libraries"
     [[ $libraries != *'not found'* ]] || fail "Missing native dependencies: $libraries"
     if [[ $scope == system ]]; then
-        sudo bash "$release/install.sh" install --scope system
+        sudo bash "$release/install.sh" install --scope system "${installer_flags[@]}"
         expected=/etc/systemd/user/g13.service
     else
-        bash "$release/install.sh" install --scope user
+        bash "$release/install.sh" install --scope user "${installer_flags[@]}"
         sudo bash "$release/install.sh" hardware
         expected=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/g13.service
     fi
@@ -165,7 +168,7 @@ activate_release() {
     printf 'Installed %s (%s scope). Open g13-gui and test your device.\n' "$tag" "$scope"
 }
 main() {
-    tag= scope= yes=false check=false deployed=false
+    tag= scope= yes=false check=false deployed=false debug_input=false
     while (($#)); do
         case "$1" in
             --tag|--scope)
@@ -174,6 +177,7 @@ main() {
                 shift 2 ;;
             --yes) yes=true; shift ;;
             --check) check=true; shift ;;
+            --debug-input) debug_input=true; shift ;;
             --help|-h) usage; return ;;
             *) fail "Unknown option: $1" ;;
         esac

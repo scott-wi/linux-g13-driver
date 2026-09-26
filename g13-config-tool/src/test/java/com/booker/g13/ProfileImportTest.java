@@ -36,7 +36,7 @@ public class ProfileImportTest {
         String key = "<macro guid='key' name='Forward'><keystroke><key value='W'/></keystroke></macro>";
         String chord = "<macro guid='chord' name='Sprint'><keystroke><modifier value='LSHIFT'/><key value='W'/></keystroke></macro>";
         String macro = "<macro guid='macro' name='Repeat' repeatmode='pressed' repeatdelay='50'><multikey><key value='E' direction='down'/><delay milliseconds='10'/><key value='E' direction='up'/></multikey></macro>";
-        String unsupported = "<macro guid='unsupported'><textblock><text>hello</text></textblock></macro>";
+        String unsupported = "<macro guid='unsupported'><command/></macro>";
         var result = read(export(key + chord + macro + unsupported,
             assignment("G1", 1, "key", false) + assignment("G1", 1, "unsupported", true)
             + assignment("G23", 2, "chord", false) + assignment("G26", 3, "macro", false)
@@ -51,7 +51,7 @@ public class ProfileImportTest {
         check("2".equals(result.banks()[0].getProperty("format"))
                 && "b,0".equals(result.banks()[0].getProperty("G29"))
                 && "b,2".equals(result.banks()[0].getProperty("G31")), "default layout switches missing");
-        check(result.warnings().stream().anyMatch(w -> w.contains("textblock")), "unsupported warning");
+        check(result.warnings().stream().anyMatch(w -> w.contains("command")), "unsupported warning");
         check(LogitechProfileImporter.contextKey("G27") == 38 && LogitechProfileImporter.contextKey("G28") == 39
             && LogitechProfileImporter.contextKey("G29") == 37, "stick clockwise mapping");
         fails("not xml", "malformed XML accepted");
@@ -63,6 +63,25 @@ public class ProfileImportTest {
         check(bad.importedAssignments() == 0 && bad.warnings().get(0).contains("unbalanced"), "unbalanced macro accepted");
         var toggle = read(export(key.replace("guid='key'", "guid='key' repeatmode='toggle'"), assignment("G1", 1, "key", false)));
         check(toggle.importedAssignments() == 0 && toggle.warnings().get(0).contains("toggle"), "toggle silently changed");
+        String text = "<macro guid='text' name='Wave'><textblock><text delay='15' playback='normal' hasdelay='true'>/wave&#10;</text></textblock></macro>";
+        String function = "<macro guid='layout'><function><do task='M2'/></function></macro>";
+        String joystick = "<macro guid='joystick'><joystick/></macro>";
+        var features = read(export(text + function + joystick,
+                assignment("G2", 1, "text", false) + assignment("G1", 1, "layout", false)
+                + assignment("G25", 3, "joystick", false) + assignment("G26", 3, "joystick", false)));
+        check(features.importedAssignments() == 4 && features.warnings().stream().noneMatch(w -> w.contains("unsupported action")),
+                "Windows text, function, or joystick action was rejected");
+        check("b,1".equals(features.banks()[0].getProperty("G0")), "Windows layout function not converted");
+        check("absolute".equals(features.banks()[2].getProperty("stick"))
+                && "p,k.289".equals(features.banks()[2].getProperty("G35")), "Windows joystick not converted");
+        check(features.macros().size() == 1 && "text".equals(features.macros().get(0).getProperty("type"))
+                && "/wave\n".equals(features.macros().get(0).getProperty("text"))
+                && features.macros().get(0).getProperty("sequence").endsWith("kd.28,ku.28"),
+                "Windows text block not converted into an editable text macro");
+        check("kd.42,kd.30,ku.30,ku.42,d.5,kd.42,kd.2,ku.2,ku.42,d.5,kd.28,ku.28"
+                .equals(TextMacroCodec.sequence("A!\n", 5)), "text macro key conversion");
+        try { TextMacroCodec.sequence("snowman \u2603", 0); throw new AssertionError("unsupported text character accepted"); }
+        catch (IllegalArgumentException expected) { }
         ProfileStore store = new ProfileStore(temp.resolve("config"));
         Files.createDirectories(temp.resolve("config"));
         Path legacy = temp.resolve("config/bindings-0.properties");
@@ -120,6 +139,16 @@ public class ProfileImportTest {
             try (var files = Files.list(Path.of(args[1]))) {
                 for (Path file : files.filter(p -> p.toString().endsWith(".xml")).toList()) {
                     try { var r = LogitechProfileImporter.read(file); imported++;
+                        if (file.getFileName().toString().equals("{2E51506A-8F89-4720-A073-B545A88FD344}.xml")) {
+                            check(r.importedAssignments() == 56 && r.macros().size() == 26,
+                                    "ESO profile did not import every active assignment and text macro");
+                            check("b,1".equals(r.banks()[0].getProperty("G0"))
+                                    && "b,0".equals(r.banks()[1].getProperty("G0")), "ESO layout functions were lost");
+                            check("absolute".equals(r.banks()[2].getProperty("stick"))
+                                    && "p,k.289".equals(r.banks()[2].getProperty("G35")), "ESO joystick mode was lost");
+                            check(r.warnings().stream().noneMatch(w -> w.contains("unsupported action")),
+                                    "ESO profile still contains unsupported assigned actions");
+                        }
                         for (String w : r.warnings()) if (w.contains("left unassigned")) reasons.merge(w.substring(w.indexOf(":") + 1), 1, Integer::sum);
                     } catch (IOException e) { rejected++; System.out.println("Rejected " + file.getFileName() + ": " + e.getMessage()); }
                 }

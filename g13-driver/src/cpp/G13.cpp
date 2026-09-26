@@ -116,7 +116,10 @@ void G13::check_for_config_update() {
         last_profile_scan = now;
         const std::string selected = ConfigPath::getActiveProfileDir();
         if (selected != profile_directory) {
-            bindings = 0;
+            // M1-M3 are device-wide mode buttons. Keep the selected mode when
+            // automatic or persistent profile selection changes the profile;
+            // silently returning to M1 makes the illuminated/expected mode and
+            // the bindings emitted by the driver disagree.
             loadBindings();
             return;
         }
@@ -130,6 +133,18 @@ void G13::check_for_config_update() {
             loadBindings();
         }
     }
+}
+
+void G13::publish_state() {
+    const std::string path = ConfigPath::getStatePath();
+    const std::string temporary = path + ".tmp." + std::to_string(getpid());
+    std::ofstream state(temporary, std::ios::trunc);
+    if (!state.is_open()) return;
+    state << "profile=" << ConfigPath::getSelectedProfileId() << '\n'
+          << "layout=" << bindings << '\n';
+    state.close();
+    chmod(temporary.c_str(), 0600);
+    if (rename(temporary.c_str(), path.c_str()) != 0) unlink(temporary.c_str());
 }
 
 std::unique_ptr<Macro> G13::loadMacro(int num) {
@@ -191,6 +206,9 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
                 std::getline(ss, segment, ',') && (b = std::stoi(segment)) >= 0) {
                 if (r <= 255 && g <= 255 && b <= 255) setColor(r, g, b);
             }
+        }
+        else if (key == "stick") {
+            stick_mode = value == "absolute" ? STICK_ABSOLUTE : STICK_KEYS;
         }
         else if (!key.empty() && key.rfind("G", 0) == 0) {
             try {
@@ -260,6 +278,7 @@ void G13::loadBindings() {
         action = std::make_unique<G13Action>();
     }
     std::fill(std::begin(bank_targets), std::end(bank_targets), -1);
+    stick_mode = STICK_KEYS;
 
     // Update timestamp for Live-Reload
     struct stat file_stat;
@@ -332,6 +351,7 @@ G20=p,k.50
         parse_bindings_from_stream(file);
         file.close();
     }
+    publish_state();
 }
 
 void G13::setColor(int red, int green, int blue) {
@@ -390,6 +410,13 @@ void G13::parse_joystick(unsigned char *buf) {
 
 void G13::handle_key_state(int key, int pressed) {
     if (key < 0 || key >= G13_NUM_KEYS) return;
+#ifdef G13_INPUT_DEBUG
+    const char* input_debug = getenv("G13_INPUT_DEBUG");
+    if (pressed != (actions[key] && actions[key]->isPressed()))
+        if (input_debug && strcmp(input_debug, "1") == 0)
+            syslog(LOG_DEBUG, "Input key G%d %s on M%d%s", key, pressed ? "down" : "up", bindings + 1,
+                   bank_targets[key] >= 0 ? " (layout switch)" : "");
+#endif
     if (bank_switch_held[key]) {
         if (!pressed) bank_switch_held[key] = false;
         return;

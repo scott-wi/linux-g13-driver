@@ -90,7 +90,11 @@ public final class LogitechProfileImporter {
                         binding = convertAction(macro, macros);
                         converted.put(guid, binding);
                     }
-                    banks[bank].setProperty("G" + key, binding);
+                    if (binding.equals("joystick")) {
+                        if (key == 35) banks[bank].setProperty("G35", "p,k.289");
+                        else if (key >= 36 && key <= 39) banks[bank].setProperty("stick", "absolute");
+                        else throw new IllegalArgumentException("joystick action requires the stick or its press button");
+                    } else banks[bank].setProperty("G" + key, binding);
                     count++;
                 } catch (IllegalArgumentException e) { warnings.add(label + ": " + e.getMessage() + "; left unassigned."); }
             }
@@ -145,6 +149,18 @@ public final class LogitechProfileImporter {
             if (codes.size() == 1) return "p,k." + codes.get(0);
             return "c," + String.join(",", codes.stream().map(String::valueOf).toList());
         }
+        if (type.equals("function")) {
+            List<Element> commands = children(action, "do");
+            if (commands.size() != 1) throw new IllegalArgumentException("invalid function action");
+            return switch (commands.get(0).getAttribute("task").toUpperCase(Locale.ROOT)) {
+                case "M1" -> "b,0";
+                case "M2" -> "b,1";
+                case "M3" -> "b,2";
+                default -> throw new IllegalArgumentException("unsupported function: " + commands.get(0).getAttribute("task"));
+            };
+        }
+        if (type.equals("joystick")) return "joystick";
+        if (type.equals("textblock")) return convertText(action, macro, macros);
         if (!type.equals("multikey")) throw new IllegalArgumentException("unsupported action: " + type);
         List<String> sequence = new ArrayList<>();
         Set<Integer> held = new HashSet<>();
@@ -176,6 +192,30 @@ public final class LogitechProfileImporter {
         props.setProperty("sequence", String.join(",", sequence));
         macros.add(props);
         return "m," + id + "," + repeats;
+    }
+
+    private static String convertText(Element action, Element macro, List<Properties> macros) {
+        List<Element> entries = children(action, "text");
+        if (entries.size() != 1 || !children(entries.get(0), null).isEmpty())
+            throw new IllegalArgumentException("invalid text block");
+        Element entry = entries.get(0);
+        if (!entry.getAttribute("playback").isEmpty() && !entry.getAttribute("playback").equals("normal"))
+            throw new IllegalArgumentException("unsupported text playback mode");
+        int delay = "true".equals(entry.getAttribute("hasdelay")) ? delay(entry.getAttribute("delay")) : 0;
+        String text = entry.getTextContent();
+        String sequence = TextMacroCodec.sequence(text, delay);
+        if (sequence.isEmpty()) throw new IllegalArgumentException("empty text block");
+        if (macros.size() >= 200) throw new IllegalArgumentException("200-macro limit reached");
+        int id = macros.size();
+        Properties props = new Properties();
+        props.setProperty("id", Integer.toString(id));
+        props.setProperty("name", macro.getAttribute("name"));
+        props.setProperty("type", "text");
+        props.setProperty("text", text);
+        props.setProperty("characterDelay", Integer.toString(delay));
+        props.setProperty("sequence", sequence);
+        macros.add(props);
+        return "m," + id + ",0";
     }
 
     private static int delay(String value) {

@@ -13,8 +13,10 @@
  */
 class UInput {
 private:
-    /** The file descriptor for the opened /dev/uinput device. */
-    static int file;
+    /** Separate capability classes keep libinput from misclassifying the device as a tablet. */
+    static int keyboard_file;
+    static int pointer_file;
+    static int joystick_file;
     /** A mutex to ensure thread-safe access to the file descriptor. */
     static std::mutex plock;
 

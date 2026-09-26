@@ -49,6 +49,13 @@ public class ProfileGuiTest {
         }
         return null;
     }
+    static JComboBox<?> combo(Container parent, String firstItem) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JComboBox<?> box && box.getItemCount() > 0 && firstItem.equals(box.getItemAt(0))) return box;
+            if (c instanceof Container container) { JComboBox<?> box = combo(container, firstItem); if (box != null) return box; }
+        }
+        return null;
+    }
     static void layout(Container c) { c.doLayout(); for (Component child : c.getComponents()) if (child instanceof Container next) layout(next); }
     static BufferedImage render(Container component, Path output) throws Exception {
         layout(component);
@@ -63,15 +70,29 @@ public class ProfileGuiTest {
         SwingUtilities.invokeAndWait(() -> {
             try {
                 UiTheme.apply(false);
+                Properties validState = new Properties();
+                validState.setProperty("profile", "default");
+                validState.setProperty("layout", "2");
+                ProfileImportTest.check(DriverState.parse(validState).orElseThrow().layout() == 2,
+                        "valid driver layout state was not accepted");
+                validState.setProperty("layout", "7");
+                ProfileImportTest.check(DriverState.parse(validState).isEmpty(), "invalid driver layout state was accepted");
                 // Initialize the legacy files as a real first launch would.
                 new G13();
                 byte[] legacy = Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"));
                 Properties[] banks = new Properties[4];
                 for (int i = 0; i < 4; i++) { banks[i] = new Properties(); banks[i].setProperty("color", "255,255,255"); }
                 banks[0].setProperty("G0", "c,42,17");
+                Properties textMacro = new Properties();
+                textMacro.setProperty("id", "0");
+                textMacro.setProperty("name", "Imported greeting");
+                textMacro.setProperty("type", "text");
+                textMacro.setProperty("text", "hello\n");
+                textMacro.setProperty("characterDelay", "0");
+                textMacro.setProperty("sequence", TextMacroCodec.sequence("hello\n", 0));
                 var store = new ProfileStore(Configs.getRootDir());
                 var saved = store.save(new LogitechProfileImporter.Result("Example game", "synthetic", java.util.List.of(), banks,
-                    java.util.List.of(), java.util.List.of(), 1));
+                    java.util.List.of(textMacro), java.util.List.of(), 1));
                 BufferedImage sourceIcon = new BufferedImage(300, 100, BufferedImage.TYPE_INT_RGB);
                 Graphics2D sourceGraphics = sourceIcon.createGraphics();
                 sourceGraphics.setColor(Color.MAGENTA);
@@ -103,7 +124,26 @@ public class ProfileGuiTest {
                 macroName.setText("Edited imported macro");
                 macroName.postActionEvent();
                 ProfileImportTest.check("Edited imported macro".equals(Configs.loadMacro(0).getProperty("name")), "imported macro edit not saved");
+                JComboBox<?> macroType = combo(editor, "Keystrokes");
+                ProfileImportTest.check(macroType.getSelectedIndex() == 1,
+                        "imported text macro did not open in the text editor");
+                JTextArea textEditor = find(editor, JTextArea.class);
+                textEditor.setText("Updated!\n");
+                button(editor, "Save text").doClick();
+                Properties editedText = Configs.loadMacro(0);
+                ProfileImportTest.check("Updated!\n".equals(editedText.getProperty("text"))
+                        && editedText.getProperty("sequence").endsWith("kd.28,ku.28"), "text macro editor did not save runnable output");
+                macroSelector.setSelectedIndex(1);
+                macroType.setSelectedIndex(1);
+                textEditor.setText("Created in Linux\n");
+                button(editor, "Save text").doClick();
+                ProfileImportTest.check("text".equals(Configs.loadMacro(1).getProperty("type"))
+                        && "Created in Linux\n".equals(Configs.loadMacro(1).getProperty("text")),
+                        "GUI could not create a new text macro");
                 KeybindPanel bindings = find(gui, KeybindPanel.class);
+                combo(bindings, "Mapped keys").setSelectedIndex(1);
+                ProfileImportTest.check("absolute".equals(Configs.loadBindings(0).getProperty("stick")),
+                        "joystick mode editor did not save analog mode");
                 bindings.setSelectedKey(Key.getKeyFor(0));
                 ProfileImportTest.check("c,42,17".equals(Configs.loadBindings(0).getProperty("G0")), "viewing chord changed binding");
                 checkbox(bindings, "Switch layout").doClick();
@@ -113,12 +153,16 @@ public class ProfileGuiTest {
                         "new and import actions are not below the profile list");
                 ProfileImportTest.check(checkbox(sidebar, "Persistent profile") == null,
                         "persistent control still appears in profile details");
+                JComboBox<?> editorLayout = layoutBox(gui);
+                editorLayout.setSelectedIndex(2);
                 JPopupMenu profileMenu = sidebar.profileMenu(saved);
                 menuItem(profileMenu, "Set Default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
                 JCheckBoxMenuItem persistence = (JCheckBoxMenuItem) menuItem(sidebar.profileMenu(saved), "Set Persistent");
                 persistence.doClick();
                 ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
+                ProfileImportTest.check(editorLayout.getSelectedIndex() == 2,
+                        "persistent profile selection unexpectedly reset the editing layout");
                 ProfileImportTest.check(menuItem(sidebar.profileMenu(store.find("default")), "Delete").isEnabled() == false,
                         "existing-bindings profile can be deleted");
                 ProfileImportTest.check(menuItem(sidebar.profileMenu(saved), "Delete").isEnabled(),

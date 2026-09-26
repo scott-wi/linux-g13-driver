@@ -33,6 +33,7 @@ static bool contains(int code, int value) {
 int main(int argc, char** argv) {
     assert(argc == 2);
     setenv("XDG_CONFIG_HOME", argv[1], 1);
+    setenv("XDG_RUNTIME_DIR", argv[1], 1);
     std::string root = std::string(argv[1]) + "/g13";
     std::string proc = std::string(argv[1]) + "/proc";
     setenv("G13_PROC_ROOT", proc.c_str(), 1);
@@ -88,14 +89,33 @@ int main(int argc, char** argv) {
         G13 device(nullptr);
         std::ofstream(dir + "/bindings-0.properties") << "format=2\nG0=p,k.31\nG30=b,1\n";
         device.loadBindings();
+        assert(std::filesystem::exists(std::string(argv[1]) + "/g13-state.properties"));
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("profile=" + id) != std::string::npos && contents.find("layout=0") != std::string::npos);
+        }
         device.actions[0]->set(1);
         assert(contains(31, 1));
         unsigned char report[5] = {};
         report[G13_KEY_M2 / 8] = 1 << (G13_KEY_M2 % 8);
         device.parse_key(G13_KEY_M2, report);
         assert(device.bindings == 1);
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("layout=1") != std::string::npos);
+        }
         assert(contains(31, 0));
         unsigned char released[5] = {};
+        device.parse_key(G13_KEY_M2, released);
+        unsigned char m1[5] = {};
+        m1[G13_KEY_M1 / 8] = 1 << (G13_KEY_M1 % 8);
+        device.parse_key(G13_KEY_M1, m1);
+        assert(device.bindings == 0);
+        device.parse_key(G13_KEY_M1, released);
+        device.parse_key(G13_KEY_M2, report);
+        assert(device.bindings == 1);
         device.parse_key(G13_KEY_M2, released);
         {
             std::lock_guard<std::mutex> lock(eventsMutex);
@@ -114,17 +134,24 @@ int main(int argc, char** argv) {
         assert(device.bindings == 2); // any physical key can select a layout
         std::ofstream(dir + "/bindings-2.properties") << "format=2\nG1=p,k.164\n";
         device.loadBindings();
+        assert(device.stick_mode == STICK_KEYS);
         device.actions[1]->set(1);
         device.actions[1]->set(0);
         assert(contains(164, 1) && contains(164, 0)); // media key range is accepted
-        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
+        std::ofstream(dir + "/bindings-2.properties") << "format=2\nstick=absolute\nG35=p,k.289\n";
+        device.loadBindings();
+        assert(device.stick_mode == STICK_ABSOLUTE); // imported joystick mode is applied per layout
+        device.actions[35]->set(1);
+        device.actions[35]->set(0);
+        assert(contains(289, 1) && contains(289, 0));
+        std::ofstream(root + "/bindings-2.properties") << "format=2\nG0=p,k.32\n";
         std::ofstream(root + "/persistent-profile") << "default\n";
         device.last_profile_scan = 0;
         device.check_for_config_update();
-        assert(device.bindings == 0 && device.profile_directory == root);
+        assert(device.bindings == 2 && device.profile_directory == root);
         device.actions[0]->set(1);
         assert(contains(32, 1));
-        std::ofstream(root + "/bindings-0.properties") << "G0=p,k.33\n";
+        std::ofstream(root + "/bindings-2.properties") << "format=2\nG0=p,k.33\n";
         device.check_for_config_update();
         assert(contains(32, 0));
         device.actions[0]->set(1);

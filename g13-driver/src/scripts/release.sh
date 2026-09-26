@@ -32,8 +32,10 @@ revision=$(git -C "$root" rev-parse --short HEAD)
 dirty=false
 [[ -z $(git -C "$root" status --porcelain --untracked-files=normal) ]] || dirty=true
 read_host
-printf 'format=2\nversion=%s\nrevision=%s\ndirty=%s\nos_id=%s\nos_version=%s\narchitecture=%s\n' \
-    "$version" "$revision" "$dirty" "$host_os" "$host_version" "$host_arch" > "$payload/release.meta"
+input_debug=false
+[[ ${G13_INPUT_DEBUG_BUILD:-0} == 0 ]] || input_debug=true
+printf 'format=3\nversion=%s\nrevision=%s\ndirty=%s\nos_id=%s\nos_version=%s\narchitecture=%s\ninput_debug=%s\n' \
+    "$version" "$revision" "$dirty" "$host_os" "$host_version" "$host_arch" "$input_debug" > "$payload/release.meta"
 chmod 644 "$payload/release.meta"
 # Derive an immutable ID from metadata and all payload bytes, before adding the ID.
 digest=$(cd "$payload" && sha256sum -- "${release_files[@]}" | sha256sum)

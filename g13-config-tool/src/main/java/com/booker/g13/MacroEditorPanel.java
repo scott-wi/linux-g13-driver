@@ -1,6 +1,7 @@
 package com.booker.g13;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.GridLayout;
@@ -32,6 +33,12 @@ public class MacroEditorPanel extends JPanel {
 	private final DefaultListModel<String> listModel = new DefaultListModel<>();
 	private final JList<String> macroList = new JList<>(listModel);
 	private final JTextField nameText = new JTextField();
+	private final JComboBox<String> macroType = new JComboBox<>(new String[]{"Keystrokes", "Text"});
+	private final JTextArea textEditor = new JTextArea();
+	private final JSpinner characterDelay = new JSpinner(new SpinnerNumberModel(0, 0, 60000, 1));
+	private final JButton saveTextButton = new JButton("Save text");
+	private final JPanel editorCards = new JPanel(new CardLayout());
+	private final JPanel controlCards = new JPanel(new CardLayout());
 	private final JButton addDelayButton = new JButton("Add delay");
 	private final JCheckBox captureDelays = new JCheckBox("Record delays", true);
 	private final JButton editButton = new JButton("Edit delay");
@@ -64,13 +71,24 @@ public class MacroEditorPanel extends JPanel {
         final JPanel northPanel = new JPanel(new BorderLayout(0, 8));
 		northPanel.add(macroSelectionBox, BorderLayout.NORTH);
 
+		final JPanel metadata = new JPanel(new GridLayout(0, 1, 0, 8));
 		final JPanel namePanel = new JPanel(new BorderLayout(10, 0));
 		namePanel.add(new JLabel("Name"), BorderLayout.WEST);
 		namePanel.add(nameText, BorderLayout.CENTER);
-		northPanel.add(namePanel, BorderLayout.SOUTH);
+		metadata.add(namePanel);
+		final JPanel typePanel = new JPanel(new BorderLayout(10, 0));
+		typePanel.add(new JLabel("Macro type"), BorderLayout.WEST);
+		typePanel.add(macroType, BorderLayout.CENTER);
+		metadata.add(typePanel);
+		northPanel.add(metadata, BorderLayout.SOUTH);
 
 		add(northPanel, BorderLayout.NORTH);
-		add(new JScrollPane(macroList), BorderLayout.CENTER);
+		editorCards.add(new JScrollPane(macroList), "keys");
+		textEditor.setLineWrap(true);
+		textEditor.setWrapStyleWord(true);
+		textEditor.setToolTipText("Text is typed as US-keyboard input; newline sends Enter");
+		editorCards.add(new JScrollPane(textEditor), "text");
+		add(editorCards, BorderLayout.CENTER);
 
 		final JPanel controls = new JPanel(new GridLayout(0, 1, 0, 8));
 		controls.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
@@ -88,7 +106,17 @@ public class MacroEditorPanel extends JPanel {
 		recordButton.setFocusTraversalKeysEnabled(false);
 		controls.add(recordButton);
 
-		add(controls, BorderLayout.SOUTH);
+		controlCards.add(controls, "keys");
+		final JPanel textControls = new JPanel(new BorderLayout());
+		final JPanel textControlRow = new JPanel(new BorderLayout(8, 0));
+		final JPanel delayPanel = new JPanel(new BorderLayout(8, 0));
+		delayPanel.add(new JLabel("Character delay (ms)"), BorderLayout.WEST);
+		delayPanel.add(characterDelay, BorderLayout.CENTER);
+		textControlRow.add(delayPanel, BorderLayout.CENTER);
+		textControlRow.add(saveTextButton, BorderLayout.EAST);
+		textControls.add(textControlRow, BorderLayout.NORTH);
+		controlCards.add(textControls, "text");
+		add(controlCards, BorderLayout.SOUTH);
     }
 
     /**
@@ -99,6 +127,8 @@ public class MacroEditorPanel extends JPanel {
         deleteButton.addActionListener(e -> delete());
         addDelayButton.addActionListener(e -> addDelay());
         recordButton.addActionListener(e -> startStopRecording());
+		saveTextButton.addActionListener(e -> saveTextMacro());
+		macroType.addActionListener(e -> changeMacroType());
 
         macroSelectionBox.addActionListener(e -> selectMacro());
         macroList.setCellRenderer(new MacroStepCellRenderer());
@@ -133,7 +163,7 @@ public class MacroEditorPanel extends JPanel {
         // Save the macro name when the user presses Enter.
         nameText.addActionListener(e -> {
 			nameText.setForeground(UIManager.getColor("TextField.foreground"));
-			saveMacro();
+			saveCurrentMacro();
 			macroSelectionBox.repaint(); // Repaint to show the new name in the combo box.
 		});
 
@@ -192,11 +222,21 @@ public class MacroEditorPanel extends JPanel {
      * @param enabled The desired enabled state.
      */
     private void setComponentStates(boolean enabled) {
-        final JComponent[] components = { macroSelectionBox, macroList, nameText, addDelayButton, captureDelays, editButton, deleteButton };
-        for (JComponent c : components) {
-            c.setEnabled(enabled);
-        }
-        recordButton.setEnabled(canModifyMacro());
+		boolean editable = enabled && canModifyMacro();
+		boolean text = isTextMacro();
+		macroSelectionBox.setEnabled(!captureMode);
+		nameText.setEnabled(!captureMode);
+		nameText.setEditable(editable);
+		macroType.setEnabled(editable);
+		macroList.setEnabled(enabled && !text);
+		addDelayButton.setEnabled(editable && !text);
+		captureDelays.setEnabled(editable && !text);
+		textEditor.setEnabled(enabled && text);
+		textEditor.setEditable(editable && text);
+		characterDelay.setEnabled(editable && text);
+		saveTextButton.setEnabled(editable && text);
+		recordButton.setEnabled(editable && !text);
+		updateButtonStates();
     }
 
 	/**
@@ -206,6 +246,11 @@ public class MacroEditorPanel extends JPanel {
 	 */
 	private boolean canModifyMacro() {
 		return macroSelectionBox.getSelectedIndex() >= (Configs.getConfigDir().equals(Configs.getRootDir()) ? Configs.DEFAULT_MACROS_COUNT : 0);
+	}
+
+	private boolean isTextMacro() {
+		Object selected = macroSelectionBox.getSelectedItem();
+		return selected instanceof Properties properties && "text".equals(properties.getProperty("type"));
 	}
 
 	/**
@@ -224,7 +269,7 @@ public class MacroEditorPanel extends JPanel {
 		} else {
 			recordButton.setText("Clear and record");
             nameText.setEnabled(canModifyMacro());
-			saveMacro();
+			saveCurrentMacro();
 		}
 	}
 
@@ -240,7 +285,7 @@ public class MacroEditorPanel extends JPanel {
         for (int i = indices.length - 1; i >= 0; i--) {
             listModel.removeElementAt(indices[i]);
         }
-        saveMacro();
+		saveCurrentMacro();
     }
 	
 	/**
@@ -261,7 +306,7 @@ public class MacroEditorPanel extends JPanel {
 
             int newDelay = Integer.parseInt(newDelayStr);
             listModel.set(selectedIndex, "d." + newDelay);
-            saveMacro();
+			saveCurrentMacro();
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Invalid delay value: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -285,7 +330,7 @@ public class MacroEditorPanel extends JPanel {
             
             int newDelay = Integer.parseInt(newDelayStr);
             listModel.insertElementAt("d." + newDelay, pos);
-            saveMacro();
+			saveCurrentMacro();
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Invalid delay value: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -318,21 +363,17 @@ public class MacroEditorPanel extends JPanel {
 		if (loadingData || macroSelectionBox.getSelectedItem() == null) return;
         loadingData = true;
 
-        // Enable/disable components based on whether the macro is editable.
-        boolean canModify = canModifyMacro();
-        macroSelectionBox.setEnabled(!captureMode);
-        macroList.setEnabled(!captureMode);
-        nameText.setEnabled(!captureMode);
-        captureDelays.setEnabled(canModify);
-        addDelayButton.setEnabled(canModify);
-        nameText.setEditable(canModify);
-        recordButton.setEnabled(canModify);
-        updateButtonStates();
-
 		listModel.clear();
 		
 		final Properties macro = (Properties)macroSelectionBox.getSelectedItem();
 		nameText.setText(macro.getProperty("name", ""));
+		boolean text = "text".equals(macro.getProperty("type"));
+		macroType.setSelectedIndex(text ? 1 : 0);
+		textEditor.setText(macro.getProperty("text", ""));
+		try { characterDelay.setValue(Integer.parseInt(macro.getProperty("characterDelay", "0"))); }
+		catch (NumberFormatException error) { characterDelay.setValue(0); }
+		((CardLayout) editorCards.getLayout()).show(editorCards, text ? "text" : "keys");
+		((CardLayout) controlCards.getLayout()).show(controlCards, text ? "text" : "keys");
 		
 		final String sequence = macro.getProperty("sequence", "");
 		if (!sequence.isEmpty()) {
@@ -344,6 +385,48 @@ public class MacroEditorPanel extends JPanel {
 		
 		loadingData = false;
         nameText.setForeground(UIManager.getColor("TextField.foreground"));
+		setComponentStates(!captureMode);
+	}
+
+	private void changeMacroType() {
+		if (loadingData || !canModifyMacro()) return;
+		Properties macro = (Properties) macroSelectionBox.getSelectedItem();
+		if (macroType.getSelectedIndex() == 1) {
+			macro.setProperty("type", "text");
+			macro.setProperty("text", "");
+			macro.setProperty("characterDelay", "0");
+			macro.setProperty("sequence", "");
+		} else {
+			macro.remove("type");
+			macro.remove("text");
+			macro.remove("characterDelay");
+			macro.setProperty("sequence", "");
+		}
+		try { Configs.saveMacro(macroSelectionBox.getSelectedIndex(), macro); }
+		catch (Exception error) { showSaveError(error); }
+		selectMacro();
+	}
+
+	private void saveCurrentMacro() {
+		if (isTextMacro()) saveTextMacro();
+		else saveMacro();
+	}
+
+	private void saveTextMacro() {
+		if (loadingData || !canModifyMacro() || !isTextMacro()) return;
+		int id = macroSelectionBox.getSelectedIndex();
+		Properties macro = (Properties) macroSelectionBox.getSelectedItem();
+		try {
+			int delay = (Integer) characterDelay.getValue();
+			macro.setProperty("name", nameText.getText());
+			macro.setProperty("type", "text");
+			macro.setProperty("text", textEditor.getText());
+			macro.setProperty("characterDelay", Integer.toString(delay));
+			macro.setProperty("sequence", TextMacroCodec.sequence(textEditor.getText(), delay));
+			Configs.saveMacro(id, macro);
+			nameText.setForeground(UIManager.getColor("TextField.foreground"));
+			macroSelectionBox.repaint();
+		} catch (Exception error) { showSaveError(error); }
 	}
 	
 	/**
@@ -371,9 +454,13 @@ public class MacroEditorPanel extends JPanel {
 		try {
 			Configs.saveMacro(id, macro);
 		} catch (Exception e) {
-			e.printStackTrace();
-			JOptionPane.showMessageDialog(this, "Could not save macro: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+			showSaveError(e);
 		}
+	}
+
+	private void showSaveError(Exception error) {
+		error.printStackTrace();
+		JOptionPane.showMessageDialog(this, "Could not save macro: " + error.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 	}
     
     /**
