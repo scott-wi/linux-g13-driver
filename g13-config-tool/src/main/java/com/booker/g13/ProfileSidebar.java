@@ -1,6 +1,8 @@
 package com.booker.g13;
 
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -14,6 +16,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 public final class ProfileSidebar extends JPanel {
     public interface Listener {
         void selected(ProfileStore.Profile profile);
+        boolean profileChangeAllowed();
         void importRequested();
         void themeChanged(boolean dark);
         void error(Exception error);
@@ -22,12 +25,12 @@ public final class ProfileSidebar extends JPanel {
     private final ProfileStore store;
     private final Listener listener;
     private final DefaultListModel<ProfileStore.Profile> model = new DefaultListModel<>();
-    private final JList<ProfileStore.Profile> list = new JList<>(model);
+    private final JList<ProfileStore.Profile> list = new JList<>(model) {
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+    };
     private final JTextField profileName = new JTextField();
     private final JTextField application = new JTextField();
-    private final JCheckBox persistent = new JCheckBox("Persistent profile");
     private final JCheckBox darkMode = new JCheckBox("Dark mode", UiTheme.isDark());
-    private final JLabel selectionStatus = new JLabel();
     private final Map<Path, ImageIcon> icons = new HashMap<>();
     private boolean refreshing;
 
@@ -36,7 +39,7 @@ public final class ProfileSidebar extends JPanel {
         this.listener = listener;
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 6));
-        setPreferredSize(new Dimension(320, 720));
+        setPreferredSize(new Dimension(350, 720));
 
         JLabel title = new JLabel("Profiles");
         title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
@@ -54,10 +57,24 @@ public final class ProfileSidebar extends JPanel {
                 listener.selected(list.getSelectedValue());
             }
         });
-        add(new JScrollPane(list), BorderLayout.CENTER);
+        list.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent event) { maybeShowProfileMenu(event); }
+            @Override public void mouseReleased(MouseEvent event) { maybeShowProfileMenu(event); }
+        });
+        JPanel browser = new JPanel(new BorderLayout(0, 8));
+        JScrollPane profileScroll = new JScrollPane(list);
+        profileScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        browser.add(profileScroll, BorderLayout.CENTER);
+        JPanel profileButtons = new JPanel(new GridLayout(1, 2, 8, 0));
+        JButton newButton = new JButton("New…");
+        JButton importButton = new JButton("Import…");
+        profileButtons.add(newButton);
+        profileButtons.add(importButton);
+        browser.add(profileButtons, BorderLayout.SOUTH);
+        add(browser, BorderLayout.CENTER);
 
         JPanel details = new JPanel(new GridBagLayout());
-        details.setBorder(UiTheme.sectionBorder("Profile selection"));
+        details.setBorder(UiTheme.sectionBorder("Profile details"));
         GridBagConstraints row = new GridBagConstraints();
         row.gridx = 0;
         row.gridy = 0;
@@ -85,26 +102,12 @@ public final class ProfileSidebar extends JPanel {
         row.gridy++;
         details.add(editButtons, row);
 
-        JButton makeDefault = new JButton("Set as default");
-        row.gridy++;
-        details.add(makeDefault, row);
-        row.gridy++;
-        row.insets = new Insets(0, 0, 5, 0);
-        details.add(persistent, row);
-        row.gridy++;
-        row.insets = new Insets(0, 3, 10, 0);
-        details.add(selectionStatus, row);
-        JButton importButton = new JButton("Import Windows profile…");
-        row.gridy++;
-        row.insets = new Insets(0, 0, 0, 0);
-        details.add(importButton, row);
         add(details, BorderLayout.SOUTH);
 
         save.addActionListener(event -> updateSelected(null));
         chooseIcon.addActionListener(event -> chooseIcon());
-        makeDefault.addActionListener(event -> setDefault());
-        persistent.addActionListener(event -> setPersistent());
         darkMode.addActionListener(event -> listener.themeChanged(darkMode.isSelected()));
+        newButton.addActionListener(event -> createProfile());
         importButton.addActionListener(event -> listener.importRequested());
     }
 
@@ -135,12 +138,9 @@ public final class ProfileSidebar extends JPanel {
         profileName.setText(profile.name());
         application.setText(profile.applications().isEmpty() ? "" : profile.applications().get(0));
         try {
-            ProfileStore.Profile defaultProfile = store.defaultProfile();
-            var persistentProfile = store.persistentProfile();
-            persistent.setSelected(persistentProfile.map(value -> value.id().equals(profile.id())).orElse(false));
-            String status = profile.id().equals(defaultProfile.id()) ? "Default fallback" : "";
-            if (persistent.isSelected()) status = "Persistent override";
-            selectionStatus.setText(status.isEmpty() ? "Matched when its app is running" : status);
+            // Resolve selection metadata here so configuration errors are still surfaced promptly.
+            store.defaultProfile();
+            store.persistentProfile();
         } catch (IOException error) { listener.error(error); }
     }
 
@@ -163,27 +163,96 @@ public final class ProfileSidebar extends JPanel {
             updateSelected(chooser.getSelectedFile().toPath());
     }
 
-    private void setDefault() {
+    private void setDefault(ProfileStore.Profile profile) {
         try {
-            store.setDefault(list.getSelectedValue());
-            refresh(list.getSelectedValue());
+            store.setDefault(profile);
+            refresh(profile);
         } catch (IOException error) { listener.error(error); }
     }
 
-    private void setPersistent() {
-        if (refreshing) return;
+    private void setPersistent(ProfileStore.Profile profile, boolean enabled) {
         try {
-            if (persistent.isSelected()) store.setPersistent(list.getSelectedValue());
+            if (enabled) store.setPersistent(profile);
             else store.clearPersistent();
-            refresh(list.getSelectedValue());
+            refresh(profile);
         } catch (IOException error) { listener.error(error); }
     }
 
-    private final class ProfileRenderer extends DefaultListCellRenderer {
-        @Override public Component getListCellRendererComponent(JList<?> owner, Object value,
-                int index, boolean selected, boolean focus) {
-            super.getListCellRendererComponent(owner, value, index, selected, focus);
-            ProfileStore.Profile profile = (ProfileStore.Profile) value;
+    private void createProfile() {
+        if (!listener.profileChangeAllowed()) return;
+        String name = JOptionPane.showInputDialog(this, "Profile name", "New profile", JOptionPane.PLAIN_MESSAGE);
+        if (name == null) return;
+        try {
+            ProfileStore.Profile created = store.create(name);
+            refresh(created);
+            listener.selected(created);
+        } catch (IOException | IllegalArgumentException error) { listener.error(error); }
+    }
+
+    private void deleteProfile(ProfileStore.Profile profile) {
+        if (!listener.profileChangeAllowed()) return;
+        if (JOptionPane.showConfirmDialog(this, "Delete profile ‘" + profile.name() + "’?",
+                "Delete profile", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return;
+        try {
+            store.delete(profile);
+            icons.clear();
+            refresh(store.defaultProfile());
+            listener.selected(list.getSelectedValue());
+        } catch (IOException | IllegalArgumentException error) { listener.error(error); }
+    }
+
+    private void maybeShowProfileMenu(MouseEvent event) {
+        int index = list.locationToIndex(event.getPoint());
+        if (index < 0) return;
+        Rectangle bounds = list.getCellBounds(index, index);
+        if (bounds == null || !bounds.contains(event.getPoint())) return;
+        boolean menuButton = SwingUtilities.isLeftMouseButton(event) && event.getID() == MouseEvent.MOUSE_PRESSED
+                && event.getX() >= bounds.x + bounds.width - 42;
+        if (!menuButton && !event.isPopupTrigger()) return;
+        ProfileStore.Profile profile = model.get(index);
+        list.setSelectedIndex(index);
+        JPopupMenu menu = profileMenu(profile);
+        menu.show(list, bounds.x + bounds.width - menu.getPreferredSize().width, bounds.y + bounds.height - 4);
+        event.consume();
+    }
+
+    JPopupMenu profileMenu(ProfileStore.Profile profile) {
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem makeDefault = new JMenuItem("Set Default");
+        JCheckBoxMenuItem makePersistent = new JCheckBoxMenuItem("Set Persistent");
+        JMenuItem delete = new JMenuItem("Delete");
+        try {
+            makeDefault.setEnabled(!store.defaultProfile().id().equals(profile.id()));
+            makePersistent.setSelected(store.persistentProfile()
+                    .map(candidate -> candidate.id().equals(profile.id())).orElse(false));
+        } catch (IOException error) { listener.error(error); }
+        makeDefault.addActionListener(action -> setDefault(profile));
+        makePersistent.addActionListener(action -> setPersistent(profile, makePersistent.isSelected()));
+        delete.addActionListener(action -> deleteProfile(profile));
+        delete.setEnabled(!profile.id().equals("default"));
+        menu.add(makeDefault);
+        menu.add(makePersistent);
+        menu.addSeparator();
+        menu.add(delete);
+        return menu;
+    }
+
+    private final class ProfileRenderer extends JPanel implements ListCellRenderer<ProfileStore.Profile> {
+        private final JLabel content = new JLabel();
+        private final JLabel menu = new JLabel("⋮", SwingConstants.CENTER);
+
+        ProfileRenderer() {
+            super(new BorderLayout(8, 0));
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 4));
+            menu.setFont(menu.getFont().deriveFont(Font.BOLD, 22f));
+            menu.setPreferredSize(new Dimension(32, 48));
+            menu.setToolTipText("Profile actions");
+            add(content, BorderLayout.CENTER);
+            add(menu, BorderLayout.EAST);
+        }
+
+        @Override public Component getListCellRendererComponent(JList<? extends ProfileStore.Profile> owner,
+                ProfileStore.Profile profile, int index, boolean selected, boolean focus) {
             String state;
             try {
                 state = profile.id().equals(store.defaultProfile().id()) ? "Default" :
@@ -191,10 +260,17 @@ public final class ProfileSidebar extends JPanel {
                 if (store.persistentProfile().map(candidate -> candidate.id().equals(profile.id())).orElse(false)) state = "Persistent";
             } catch (IOException error) { state = "Configuration error"; }
             String detail = selected ? html(state) : "<span style='color:" + UiTheme.mutedHex() + "'>" + html(state) + "</span>";
-            setText("<html><b>" + html(profile.name()) + "</b><br>" + detail + "</html>");
-            setIcon(loadIcon(profile));
-            setIconTextGap(10);
-            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+            content.setText("<html><b>" + html(profile.name()) + "</b><br>" + detail + "</html>");
+            content.setIcon(loadIcon(profile));
+            content.setIconTextGap(10);
+            Color background = selected ? owner.getSelectionBackground() : owner.getBackground();
+            Color foreground = selected ? owner.getSelectionForeground() : owner.getForeground();
+            setBackground(background);
+            content.setForeground(foreground);
+            menu.setForeground(foreground);
+            setOpaque(true);
+            setSize(Math.max(1, owner.getWidth()), owner.getFixedCellHeight());
+            doLayout();
             return this;
         }
 

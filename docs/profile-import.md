@@ -2,12 +2,12 @@
 
 Build and deploy both the driver and GUI from this version. Older installed drivers do not understand the profile selector or chord bindings. Building with `make all` does not change the installed driver.
 
-1. Open the new GUI and choose **Import Windows profile…**.
+1. Open the new GUI and choose **Import…** below the profile list.
 2. Select one Logitech Gaming Software `.xml` export.
 3. Review the assignment count and warnings. Cancel makes no configuration changes.
 4. Import saves a separate named profile and opens it for editing. Duplicate names receive a suffix; previous profiles are preserved.
 5. Optionally edit its name, choose an icon, then enter the Linux executable name used to match the profile. A full path is reduced to its executable basename.
-6. Use **Set as default** for the fallback when no configured application is running. Enable **Persistent profile** to keep one profile selected regardless of running applications; disable it to resume automatic selection.
+6. Open a profile's three-dot menu and choose **Set Default** for the fallback when no configured application is running. Toggle **Set Persistent** to keep that profile selected regardless of running applications. The same menu can delete named profiles; the existing-bindings profile is protected.
 
 Imported M1–M3 layouts receive explicit switch assignments on the physical M keys. Choose a layout above the keypad to edit it. Any control can switch to M1, M2, or M3, and the M keys can be reassigned like other controls. **Choose…** under Pass through includes keyboard keys, mouse buttons, media controls, and common system keys.
 
