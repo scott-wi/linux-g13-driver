@@ -23,6 +23,13 @@ public class ProfileGuiTest {
         }
         return null;
     }
+    static JToggleButton toggle(Container parent, String label) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JToggleButton b && b.getText().equals(label)) return b;
+            if (c instanceof Container container) { JToggleButton b = toggle(container, label); if (b != null) return b; }
+        }
+        return null;
+    }
     static JCheckBox checkbox(Container parent, String label) {
         for (Component c : parent.getComponents()) {
             if (c instanceof JCheckBox box && box.getText().equals(label)) return box;
@@ -91,6 +98,58 @@ public class ProfileGuiTest {
                     java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, x, y, 1, false,
                     java.awt.event.MouseEvent.BUTTON1)) == -1, "dragging onto menu activated it");
         }
+    }
+
+    static void checkTheatre(G13 gui, Path output) throws Exception {
+        ImageMap map = find(gui, ImageMap.class);
+        ProfileSidebar profiles = find(gui, ProfileSidebar.class);
+        Container editor = find(gui, KeybindPanel.class).getParent();
+        JToggleButton theatre = toggle(gui, "Theatre");
+        JToggleButton left = toggle(gui, "Profiles");
+        JToggleButton right = toggle(gui, "Editor");
+        gui.setSize(1920, 1080);
+        layout(gui);
+        int normalWidth = map.getWidth();
+        double normalKeyWidth = map.imagePointToComponent(100, 203).distance(map.imagePointToComponent(60, 203));
+        theatre.doClick();
+        layout(gui);
+        ProfileImportTest.check(!profiles.isVisible() && !editor.isVisible() && theatre.isSelected(),
+                "theatre did not hide both sidebars");
+        ProfileImportTest.check(map.getWidth() > normalWidth
+                && map.imagePointToComponent(100, 203).distance(map.imagePointToComponent(60, 203)) > normalKeyWidth,
+                "theatre did not enlarge the keypad");
+        for (Dimension size : java.util.List.of(new Dimension(1920, 1080), new Dimension(1100, 720), new Dimension(1200, 1600))) {
+            gui.setSize(size);
+            layout(gui);
+            ProfileImportTest.check(theatre.isVisible() && theatre.getBounds().width > 0,
+                    "theatre exit control disappeared");
+            for (Key key : Key.getAllMasks()) {
+                Rectangle bounds = key.getShape().getBounds();
+                Point topLeft = map.imagePointToComponent(bounds.x, bounds.y);
+                Point bottomRight = map.imagePointToComponent(bounds.x + bounds.width, bounds.y + bounds.height);
+                ProfileImportTest.check(topLeft.x >= 0 && topLeft.y >= 0
+                        && bottomRight.x <= map.getWidth() && bottomRight.y <= map.getHeight(),
+                        "focused view cropped an assignable control");
+                Point center = map.imagePointToComponent(bounds.getCenterX(), bounds.getCenterY());
+                ProfileImportTest.check(map.keyAtComponent(center) == key, "focused hit regions no longer track keys");
+            }
+        }
+        gui.setSize(1920, 1080);
+        render(gui, output);
+        theatre.doClick();
+        ProfileImportTest.check(profiles.isVisible() && editor.isVisible(), "theatre did not restore sidebars");
+        left.doClick();
+        ProfileImportTest.check(!profiles.isVisible() && editor.isVisible(), "profiles cannot be hidden independently");
+        theatre.doClick();
+        theatre.doClick();
+        ProfileImportTest.check(!profiles.isVisible() && editor.isVisible(), "theatre lost the previous sidebar arrangement");
+        right.doClick();
+        ProfileImportTest.check(theatre.isSelected(), "hiding both sidebars did not focus keys");
+        left.doClick();
+        ProfileImportTest.check(profiles.isVisible() && !editor.isVisible() && !theatre.isSelected(),
+                "profiles cannot be restored independently from theatre");
+        right.doClick();
+        ProfileImportTest.check(profiles.isVisible() && editor.isVisible(), "editor cannot be restored independently");
     }
 
     public static void main(String[] args) throws Exception {
@@ -253,7 +312,11 @@ public class ProfileGuiTest {
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
-                System.out.println("Headless GUI profiles, themes, spacing, and resize alignment tests passed.");
+                checkTheatre(gui, Path.of(args[0]).resolveSibling("g13-theatre-dark.png"));
+                UiTheme.apply(false);
+                SwingUtilities.updateComponentTreeUI(gui);
+                checkTheatre(gui, Path.of(args[0]).resolveSibling("g13-theatre-light.png"));
+                System.out.println("Headless GUI profiles, themes, menus, theatre, spacing, and resize alignment tests passed.");
             } catch (Exception e) { throw new RuntimeException(e); }
         });
     }

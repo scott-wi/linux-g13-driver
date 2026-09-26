@@ -17,6 +17,7 @@ public class ImageMap extends JComponent {
     private final List<ImageMapListener> listeners = new ArrayList<>();
     private Key selected;
     private Key mouseover;
+    private boolean focusKeys;
 
     public ImageMap() {
         setPreferredSize(new Dimension(G13_KEYPAD.getIconWidth(), G13_KEYPAD.getIconHeight()));
@@ -66,13 +67,30 @@ public class ImageMap extends JComponent {
         synchronized (listeners) { for (ImageMapListener listener : listeners) listener.mouseover(mouseover); }
     }
 
+    public void setFocusKeys(boolean focusKeys) {
+        if (this.focusKeys == focusKeys) return;
+        this.focusKeys = focusKeys;
+        mouseover = null;
+        repaint();
+    }
+
+    private Rectangle viewBounds() {
+        if (!focusKeys) return new Rectangle(0, 0, G13_KEYPAD.getIconWidth(), G13_KEYPAD.getIconHeight());
+        Rectangle keys = null;
+        for (Key key : Key.getAllMasks()) {
+            if (keys == null) keys = key.getShape().getBounds();
+            else keys.add(key.getShape().getBounds());
+        }
+        keys.grow(12, 12);
+        return keys;
+    }
+
     private AffineTransform imageTransform() {
-        int imageWidth = G13_KEYPAD.getIconWidth();
-        int imageHeight = G13_KEYPAD.getIconHeight();
-        double scale = Math.min((double) getWidth() / imageWidth, (double) getHeight() / imageHeight);
+        Rectangle view = viewBounds();
+        double scale = Math.min((double) getWidth() / view.width, (double) getHeight() / view.height);
         if (!Double.isFinite(scale) || scale <= 0) scale = 1;
-        double x = (getWidth() - imageWidth * scale) / 2.0;
-        double y = (getHeight() - imageHeight * scale) / 2.0;
+        double x = (getWidth() - view.width * scale) / 2.0 - view.x * scale;
+        double y = (getHeight() - view.height * scale) / 2.0 - view.y * scale;
         AffineTransform transform = AffineTransform.getTranslateInstance(x, y);
         transform.scale(scale, scale);
         return transform;
@@ -110,10 +128,12 @@ public class ImageMap extends JComponent {
         Graphics2D g = (Graphics2D) graphics.create();
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
             AffineTransform imageTransform = imageTransform();
             double scale = imageTransform.getScaleX();
             g.transform(imageTransform);
+            g.clip(viewBounds());
             g.drawImage(G13_KEYPAD.getImage(), 0, 0, this);
             g.setStroke(new BasicStroke((float) Math.max(0.8, 1.25 / Math.max(scale, 0.01))));
             if (selected != null) {
@@ -191,8 +211,9 @@ public class ImageMap extends JComponent {
     }
 
     private void paintBindingLabels(Graphics2D graphics, double scale) {
-        Font font = new Font(Font.SANS_SERIF, Font.BOLD, 9)
-                .deriveFont((float) Math.max(9, 9 / scale));
+        // The focused view spends extra space on longer names rather than oversized type.
+        double size = focusKeys ? Math.max(9 / scale, Math.min(9, 18 / scale)) : Math.max(9, 9 / scale);
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, 9).deriveFont((float) size);
         for (Key key : Key.getAllMasks()) {
             Graphics2D g = (Graphics2D) graphics.create();
             try {

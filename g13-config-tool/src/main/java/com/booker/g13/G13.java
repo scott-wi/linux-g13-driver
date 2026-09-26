@@ -43,6 +43,12 @@ public class G13 extends JPanel {
 	private final JLabel activeLayout = new JLabel("Device: checking…");
 	private final Timer stateTimer = new Timer(500, event -> refreshDriverState());
 	private boolean changingLayout;
+    private final JPanel editorSidebar = new JPanel(new BorderLayout(0, 12));
+    private final JToggleButton profilesVisible = new JToggleButton("Profiles", true);
+    private final JToggleButton editorVisible = new JToggleButton("Editor", true);
+    private final JToggleButton theatre = new JToggleButton("Theatre");
+    private boolean restoreProfiles = true;
+    private boolean restoreEditor = true;
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
     private ProfileSidebar profileSidebar;
@@ -118,21 +124,52 @@ public class G13 extends JPanel {
 		layoutSelector.addActionListener(event -> {
 			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
 		});
-		p.add(layoutBar, BorderLayout.NORTH);
+        JPanel viewBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        profilesVisible.setToolTipText("Show or hide the profiles sidebar");
+        editorVisible.setToolTipText("Show or hide the bindings and macro editor sidebar");
+        theatre.setToolTipText("Hide both sidebars and zoom to the assignable keys; click again to restore");
+        viewBar.add(profilesVisible);
+        viewBar.add(editorVisible);
+        viewBar.add(theatre);
+        profilesVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
+        editorVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
+        theatre.addActionListener(event -> {
+            if (theatre.isSelected()) setSidebarVisibility(false, false);
+            else setSidebarVisibility(restoreProfiles, restoreEditor);
+        });
+        JPanel toolbar = new JPanel(new BorderLayout(0, 4));
+        toolbar.add(layoutBar, BorderLayout.NORTH);
+        toolbar.add(viewBar, BorderLayout.SOUTH);
+        p.add(toolbar, BorderLayout.NORTH);
 		p.add(g13Label, BorderLayout.CENTER);
 		add(p, BorderLayout.CENTER);
 		
-		final JPanel rightPanel = new JPanel(new BorderLayout(0, 12));
-		rightPanel.setPreferredSize(new Dimension(390, 720));
-		rightPanel.add(keybindPanel, BorderLayout.NORTH);
-		rightPanel.add(macroEditorPanel, BorderLayout.CENTER);
-		add(rightPanel, BorderLayout.EAST);
+		editorSidebar.setPreferredSize(new Dimension(390, 720));
+		editorSidebar.add(keybindPanel, BorderLayout.NORTH);
+		editorSidebar.add(macroEditorPanel, BorderLayout.CENTER);
+		add(editorSidebar, BorderLayout.EAST);
 		
 		// Provide the macro data to the panels that need it.
 		keybindPanel.setMacros(macros);
 		macroEditorPanel.setMacros(macros);
 		profileSidebar.refresh(editingProfile);
 	}
+
+    private void setSidebarVisibility(boolean showProfiles, boolean showEditor) {
+        boolean focusKeys = !showProfiles && !showEditor;
+        if (focusKeys && (profileSidebar.isVisible() || editorSidebar.isVisible())) {
+            restoreProfiles = profileSidebar.isVisible();
+            restoreEditor = editorSidebar.isVisible();
+        }
+        profileSidebar.setVisible(showProfiles);
+        editorSidebar.setVisible(showEditor);
+        profilesVisible.setSelected(showProfiles);
+        editorVisible.setSelected(showEditor);
+        theatre.setSelected(focusKeys);
+        g13Label.setFocusKeys(focusKeys);
+        revalidate();
+        repaint();
+    }
 
 	@Override public void addNotify() {
 		super.addNotify();
