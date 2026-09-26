@@ -9,6 +9,7 @@
 #include <linux/uinput.h>
 #include <fcntl.h>
 #include <mutex>
+#include <cerrno>
 #include <sys/time.h> // for gettimeofday
 #include <syslog.h> //  Logging
 
@@ -40,9 +41,12 @@ void UInput::send_event(int type, int code, int val) {
 	event.value = val;
 
 	// Write the event structure to the uinput file descriptor.
-	if (write(file, &event, sizeof(event)) < 0) {
-        // Optional: Error handling if write fails
-    }
+	ssize_t written = write(file, &event, sizeof(event));
+	if (written != static_cast<ssize_t>(sizeof(event)))
+		syslog(LOG_ERR, "Failed to emit uinput event type=%d code=%d value=%d: %s",
+				type, code, val, written < 0 ? strerror(errno) : "short write");
+	else if (type == EV_KEY)
+		syslog(LOG_DEBUG, "Output key code=%d value=%d", code, val);
 }
 
 /**

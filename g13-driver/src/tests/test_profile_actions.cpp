@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
         unsigned char released[5] = {};
         device.parse_key(G13_KEY_M2, released);
         unsigned char m1[5] = {};
-        m1[G13_KEY_M3 / 8] = 1 << (G13_KEY_M3 % 8); // USB bit 31 is the physical M1 button.
+        m1[G13_KEY_M1 / 8] = 1 << (G13_KEY_M1 % 8);
         device.parse_key(G13_KEY_M1, m1);
         assert(device.bindings == 0);
         device.parse_key(G13_KEY_M1, released);
