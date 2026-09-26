@@ -33,6 +33,7 @@ public final class ProfileSidebar extends JPanel {
     private final JCheckBox darkMode = new JCheckBox("Dark mode", UiTheme.isDark());
     private final Map<Path, ImageIcon> icons = new HashMap<>();
     private boolean refreshing;
+    private String pressedMenuProfile;
 
     public ProfileSidebar(ProfileStore store, Listener listener) {
         this.store = store;
@@ -60,6 +61,7 @@ public final class ProfileSidebar extends JPanel {
         list.addMouseListener(new MouseAdapter() {
             @Override public void mousePressed(MouseEvent event) { maybeShowProfileMenu(event); }
             @Override public void mouseReleased(MouseEvent event) { maybeShowProfileMenu(event); }
+            @Override public void mouseClicked(MouseEvent event) { maybeShowProfileMenu(event); }
         });
         JPanel browser = new JPanel(new BorderLayout(0, 8));
         JScrollPane profileScroll = new JScrollPane(list);
@@ -203,18 +205,37 @@ public final class ProfileSidebar extends JPanel {
     }
 
     private void maybeShowProfileMenu(MouseEvent event) {
-        int index = list.locationToIndex(event.getPoint());
+        int index = profileMenuIndex(event);
         if (index < 0) return;
         Rectangle bounds = list.getCellBounds(index, index);
-        if (bounds == null || !bounds.contains(event.getPoint())) return;
-        boolean menuButton = SwingUtilities.isLeftMouseButton(event) && event.getID() == MouseEvent.MOUSE_PRESSED
-                && event.getX() >= bounds.x + bounds.width - 42;
-        if (!menuButton && !event.isPopupTrigger()) return;
         ProfileStore.Profile profile = model.get(index);
         list.setSelectedIndex(index);
         JPopupMenu menu = profileMenu(profile);
         menu.show(list, bounds.x + bounds.width - menu.getPreferredSize().width, bounds.y + bounds.height - 4);
         event.consume();
+    }
+
+    // Separate gesture recognition from popup display so it can be checked without a desktop.
+    int profileMenuIndex(MouseEvent event) {
+        String pressedProfile = pressedMenuProfile;
+        if (event.getID() == MouseEvent.MOUSE_PRESSED || event.getID() == MouseEvent.MOUSE_CLICKED)
+            pressedMenuProfile = null;
+        int index = list.locationToIndex(event.getPoint());
+        if (index < 0) return -1;
+        Rectangle bounds = list.getCellBounds(index, index);
+        if (bounds == null || !bounds.contains(event.getPoint())) return -1;
+        ProfileStore.Profile profile = model.get(index);
+        boolean overMenuButton = SwingUtilities.isLeftMouseButton(event)
+                && event.getX() >= bounds.x + bounds.width - 42;
+        if (overMenuButton && event.getID() == MouseEvent.MOUSE_PRESSED) {
+            pressedMenuProfile = profile.id();
+            return -1;
+        }
+        // Wait until the press/release sequence is complete before handing input to the popup.
+        // A drag onto another row must not open that row's menu.
+        boolean menuButton = overMenuButton && event.getID() == MouseEvent.MOUSE_CLICKED
+                && profile.id().equals(pressedProfile);
+        return menuButton || event.isPopupTrigger() ? index : -1;
     }
 
     JPopupMenu profileMenu(ProfileStore.Profile profile) {

@@ -66,6 +66,33 @@ public class ProfileGuiTest {
         ImageIO.write(image, "png", output.toFile());
         return image;
     }
+    static void checkProfileMenuClicks(ProfileSidebar sidebar) {
+        JList<?> profiles = find(sidebar, JList.class);
+        profiles.setSize(320, 500);
+        for (int row = 0; row < profiles.getModel().getSize(); row++) {
+            Rectangle cell = profiles.getCellBounds(row, row);
+            int x = cell.x + cell.width - 20, y = cell.y + cell.height / 2;
+            for (int id : new int[] {java.awt.event.MouseEvent.MOUSE_PRESSED,
+                    java.awt.event.MouseEvent.MOUSE_RELEASED, java.awt.event.MouseEvent.MOUSE_CLICKED}) {
+                var event = new java.awt.event.MouseEvent(profiles, id, 0, 0, x, y, 1, false,
+                        java.awt.event.MouseEvent.BUTTON1);
+                int target = sidebar.profileMenuIndex(event);
+                ProfileImportTest.check(target == (id == java.awt.event.MouseEvent.MOUSE_CLICKED ? row : -1),
+                        "three-dot menu must open after the completed click, not on press or release");
+            }
+            for (int id : new int[] {java.awt.event.MouseEvent.MOUSE_PRESSED, java.awt.event.MouseEvent.MOUSE_RELEASED}) {
+                var event = new java.awt.event.MouseEvent(profiles, id, 0, 0, 60, y, 1, true,
+                        java.awt.event.MouseEvent.BUTTON3);
+                ProfileImportTest.check(sidebar.profileMenuIndex(event) == row, "right-click menu trigger failed");
+            }
+            sidebar.profileMenuIndex(new java.awt.event.MouseEvent(profiles, java.awt.event.MouseEvent.MOUSE_PRESSED,
+                    0, 0, 60, y, 1, false, java.awt.event.MouseEvent.BUTTON1));
+            ProfileImportTest.check(sidebar.profileMenuIndex(new java.awt.event.MouseEvent(profiles,
+                    java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, x, y, 1, false,
+                    java.awt.event.MouseEvent.BUTTON1)) == -1, "dragging onto menu activated it");
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
@@ -83,6 +110,7 @@ public class ProfileGuiTest {
                 Properties[] banks = new Properties[4];
                 for (int i = 0; i < 4; i++) { banks[i] = new Properties(); banks[i].setProperty("color", "255,255,255"); }
                 banks[0].setProperty("G0", "c,42,17");
+                banks[0].setProperty("G1", "m,0,0");
                 Properties textMacro = new Properties();
                 textMacro.setProperty("id", "0");
                 textMacro.setProperty("name", "Imported greeting");
@@ -124,6 +152,8 @@ public class ProfileGuiTest {
                 macroName.setText("Edited imported macro");
                 macroName.postActionEvent();
                 ProfileImportTest.check("Edited imported macro".equals(Configs.loadMacro(0).getProperty("name")), "imported macro edit not saved");
+                ProfileImportTest.check("Edited imported macro".equals(ImageMap.bindingLabel(Key.getKeyFor(1))),
+                        "macro rename did not refresh its keypad label");
                 JComboBox<?> macroType = combo(editor, "Keystrokes");
                 ProfileImportTest.check(macroType.getSelectedIndex() == 1,
                         "imported text macro did not open in the text editor");
@@ -155,6 +185,7 @@ public class ProfileGuiTest {
                         "persistent control still appears in profile details");
                 JComboBox<?> editorLayout = layoutBox(gui);
                 editorLayout.setSelectedIndex(2);
+                checkProfileMenuClicks(sidebar);
                 JPopupMenu profileMenu = sidebar.profileMenu(saved);
                 menuItem(profileMenu, "Set Default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
@@ -178,6 +209,40 @@ public class ProfileGuiTest {
                     ProfileImportTest.check(imageMap.keyAtComponent(keyCenter) == Key.getKeyFor(0),
                             "resized keypad hit region no longer tracks its image");
                 }
+                BufferedImage measure = new BufferedImage(100, 30, BufferedImage.TYPE_INT_RGB);
+                Graphics2D mg = measure.createGraphics();
+                mg.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+                FontMetrics metrics = mg.getFontMetrics();
+                for (String value : java.util.List.of("A very long macro name", "Long text block ".repeat(200), "😀".repeat(30))) {
+                    for (int width : new int[] {0, 5, 20, 45, 90}) {
+                        String fitted = ImageMap.elide(value, metrics, width);
+                        ProfileImportTest.check(metrics.stringWidth(fitted) <= width, "label exceeds available width");
+                        ProfileImportTest.check(fitted.isEmpty() || fitted.endsWith("…"), "long label lacks ellipsis");
+                    }
+                }
+                mg.dispose();
+                ProfileImportTest.check("G1".equals(ImageMap.keyName(Key.getKeyFor(0))), "physical label is off by one");
+                ProfileImportTest.check("M1".equals(ImageMap.keyName(Key.getKeyFor(29))), "layout key label is incorrect");
+                for (Key key : Key.getAllMasks()) {
+                    Rectangle area = ImageMap.labelBounds(key.getShape(), 12);
+                    ProfileImportTest.check(area.isEmpty() || key.getShape().contains(area), "label escapes a slanted key");
+                }
+                Key.getKeyFor(0).setMappedValue("Macro: A very long macro name with a text block\nsecond line");
+                ProfileImportTest.check(!ImageMap.bindingLabel(Key.getKeyFor(0)).contains("\n"), "multiline label was not normalized");
+                Key.getKeyFor(1).setMappedValue("W");
+                Key.getKeyFor(2).setMappedValue("Chord: Shift + W");
+                Key.getKeyFor(3).setMappedValue("Macro: /dancenord");
+                Key.getKeyFor(4).setMappedValue("Space");
+                Key.getKeyFor(5).setMappedValue("Macro: Heal");
+                Key.getKeyFor(6).setMappedValue("Macro: Inventory");
+                imageMap.setSize(1100, 1200);
+                Path referencePath = Path.of(args[0]).resolveSibling("g13-keypad-reference.png");
+                render(imageMap, referencePath);
+                Point hover = imageMap.imagePointToComponent(80, 203);
+                String tooltip = imageMap.getToolTipText(new java.awt.event.MouseEvent(imageMap,
+                        java.awt.event.MouseEvent.MOUSE_MOVED, 0, 0, hover.x, hover.y, 0, false));
+                ProfileImportTest.check(tooltip.contains("A very long macro name") && tooltip.contains("G1</b>"),
+                        "hover description lost the full binding or physical key name");
                 gui.setSize(gui.getPreferredSize());
                 BufferedImage light = render(gui, Path.of(args[0]));
                 checkbox(sidebar, "Dark mode").doClick();

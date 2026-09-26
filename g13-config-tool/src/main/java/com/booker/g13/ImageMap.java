@@ -97,7 +97,7 @@ public class ImageMap extends JComponent {
     @Override public String getToolTipText(MouseEvent event) {
         Key key = keyAt(event.getPoint());
         if (key == null) return null;
-        return "<html><b>G" + key.getG13KeyCode() + "</b><br>" + html(key.getMappedValue())
+        return "<html><b>" + keyName(key) + "</b><br>" + html(key.getMappedValue())
                 + ("N/A".equals(key.getRepeats()) ? "" : "<br>Repeats: " + html(key.getRepeats())) + "</html>";
     }
 
@@ -128,6 +128,7 @@ public class ImageMap extends JComponent {
                 g.setColor(UiTheme.outline());
                 g.draw(mouseover.getShape());
             }
+            paintBindingLabels(g, scale);
             Color outline = UiTheme.outline();
             g.setColor(new Color(outline.getRed(), outline.getGreen(), outline.getBlue(), 150));
             for (Key key : Key.getAllMasks()) g.draw(key.getShape());
@@ -135,4 +136,99 @@ public class ImageMap extends JComponent {
             g.dispose();
         }
     }
+    static String keyName(Key key) {
+        int code = key.getG13KeyCode();
+        if (code < 22) return "G" + (code + 1);
+        return switch (code) {
+            case 24 -> "Light";
+            case 25, 26, 27, 28 -> "LCD " + (code - 24);
+            case 29, 30, 31 -> "M" + (code - 28);
+            case 32 -> "MR";
+            case 33 -> "Thumb 1";
+            case 34 -> "Thumb 2";
+            case 35 -> "Stick";
+            case 36 -> "Up";
+            case 37 -> "Left";
+            case 38 -> "Right";
+            case 39 -> "Down";
+            default -> "G" + code;
+        };
+    }
+
+    static String bindingLabel(Key key) {
+        String value = key.getMappedValue();
+        for (String prefix : List.of("Macro: ", "Chord: ", "Switch layout: ")) {
+            if (value.startsWith(prefix)) { value = value.substring(prefix.length()); break; }
+        }
+        if ("Unassigned".equals(value)) return "—";
+        return value.replaceAll("\\s+", " ").strip();
+    }
+
+    static String elide(String text, FontMetrics metrics, int width) {
+        if (metrics.stringWidth(text) <= width) return text;
+        String ellipsis = "…";
+        if (metrics.stringWidth(ellipsis) > width) return "";
+        int end = text.length();
+        while (end > 0 && metrics.stringWidth(text.substring(0, end) + ellipsis) > width)
+            end = text.offsetByCodePoints(end, -1);
+        return text.substring(0, end) + ellipsis;
+    }
+
+    // Find a text rectangle wholly inside the polygon, including slanted edge keys.
+    static Rectangle labelBounds(Shape shape, int height) {
+        Rectangle bounds = shape.getBounds();
+        Rectangle best = new Rectangle();
+        for (int y = bounds.y + 2; y + height <= bounds.y + bounds.height - 2; y++) {
+            int left = bounds.x + 2, right = bounds.x + bounds.width - 2;
+            while (left < right && !shape.contains(left, y, 1, height)) left++;
+            while (right > left && !shape.contains(right - 1, y, 1, height)) right--;
+            if (right - left > best.width || (right - left == best.width
+                    && Math.abs(y + height / 2.0 - bounds.getCenterY())
+                    < Math.abs(best.getCenterY() - bounds.getCenterY())))
+                best = new Rectangle(left, y, right - left, height);
+        }
+        return best;
+    }
+
+    private void paintBindingLabels(Graphics2D graphics, double scale) {
+        Font font = new Font(Font.SANS_SERIF, Font.BOLD, 9)
+                .deriveFont((float) Math.max(9, 9 / scale));
+        for (Key key : Key.getAllMasks()) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            try {
+                g.setFont(font);
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                FontMetrics metrics = g.getFontMetrics();
+                int lineHeight = metrics.getHeight();
+                Font headerFont = font.deriveFont(Font.PLAIN, font.getSize2D() * 0.78f);
+                FontMetrics headerMetrics = g.getFontMetrics(headerFont);
+                int headerHeight = headerMetrics.getHeight();
+                boolean twoLines = key.getShape().getBounds().height >= lineHeight + headerHeight + 4;
+                Rectangle area = labelBounds(key.getShape(), lineHeight + (twoLines ? headerHeight : 0));
+                String label = elide(bindingLabel(key), metrics, area.width - 4);
+                if (label.isEmpty() || "…".equals(label)) continue; // Tiny controls retain their full hover description.
+                g.clip(key.getShape());
+                g.setColor(new Color(12, 18, 27));
+                g.fill(key.getShape());
+                // Retain visible selection/hover feedback beneath the high-contrast text.
+                if (key == selected || key == mouseover) {
+                    g.setColor(key == selected ? UiTheme.selectedFill() : UiTheme.hoverFill());
+                    g.fill(key.getShape());
+                }
+                int baseline = area.y + metrics.getAscent();
+                if (twoLines) {
+                    g.setColor(new Color(167, 190, 215));
+                    g.setFont(headerFont);
+                    String name = elide(keyName(key), headerMetrics, area.width - 4);
+                    g.drawString(name, area.x + (area.width - headerMetrics.stringWidth(name)) / 2,
+                            area.y + headerMetrics.getAscent());
+                    g.setFont(font);
+                    baseline += headerHeight;
+                }
+                g.setColor(Color.WHITE);
+                g.drawString(label, area.x + (area.width - metrics.stringWidth(label)) / 2, baseline);
+            } finally { g.dispose(); }
+        }
+    }
+
 }

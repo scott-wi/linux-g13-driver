@@ -87,6 +87,8 @@ public class G13 extends JPanel {
 			}			
 		});
 		
+        keybindPanel.addPropertyChangeListener("bindingsSaved", event -> refreshBindingLabels());
+        macroEditorPanel.addPropertyChangeListener("macroSaved", event -> refreshBindingLabels());
         profileSidebar = new ProfileSidebar(profileStore, new ProfileSidebar.Listener() {
             @Override public void selected(ProfileStore.Profile profile) {
                 if (!profileChangeAllowed()) profileSidebar.refresh(editingProfile);
@@ -247,6 +249,12 @@ public class G13 extends JPanel {
 		keybindPanel.setSelectedKey(null); // Deselect any key.
 		keybindPanel.setBindings(bindingNum, keyBindings[bindingNum]);
 		
+        refreshBindingLabels();
+    }
+
+    private void refreshBindingLabels() {
+        int bindingNum = layoutSelector.getSelectedIndex();
+        if (bindingNum < 0 || bindingNum > 2) return;
 		// Iterate through all possible G-keys to update their display text.
 		for (int i = 0; i < 40; i++) { 
 			final Key k = Key.getKeyFor(i);
@@ -302,6 +310,7 @@ public class G13 extends JPanel {
 				}
 			}
 		}
+        g13Label.repaint();
 	}
 	
 	/**

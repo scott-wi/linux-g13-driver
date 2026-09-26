@@ -424,6 +424,7 @@ public class MacroEditorPanel extends JPanel {
 			macro.setProperty("characterDelay", Integer.toString(delay));
 			macro.setProperty("sequence", TextMacroCodec.sequence(textEditor.getText(), delay));
 			Configs.saveMacro(id, macro);
+            firePropertyChange("macroSaved", false, true);
 			nameText.setForeground(UIManager.getColor("TextField.foreground"));
 			macroSelectionBox.repaint();
 		} catch (Exception error) { showSaveError(error); }
@@ -453,6 +454,7 @@ public class MacroEditorPanel extends JPanel {
 		// Persist the changes.
 		try {
 			Configs.saveMacro(id, macro);
+            firePropertyChange("macroSaved", false, true);
 		} catch (Exception e) {
 			showSaveError(e);
 		}
