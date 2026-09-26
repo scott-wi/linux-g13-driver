@@ -30,6 +30,11 @@ public class ProfileGuiTest {
         }
         return null;
     }
+    static JMenuItem menuItem(JPopupMenu menu, String label) {
+        for (Component component : menu.getComponents())
+            if (component instanceof JMenuItem item && label.equals(item.getText())) return item;
+        return null;
+    }
     static JTextField textField(Container parent, String value) {
         for (Component c : parent.getComponents()) {
             if (c instanceof JTextField field && field.getText().equals(value)) return field;
@@ -104,11 +109,20 @@ public class ProfileGuiTest {
                 checkbox(bindings, "Switch layout").doClick();
                 layoutBox(bindings).setSelectedIndex(2);
                 ProfileImportTest.check("b,2".equals(Configs.loadBindings(0).getProperty("G0")), "arbitrary button layout switch not saved");
-                button(sidebar, "Set as default").doClick();
+                ProfileImportTest.check(button(sidebar, "New…") != null && button(sidebar, "Import…") != null,
+                        "new and import actions are not below the profile list");
+                ProfileImportTest.check(checkbox(sidebar, "Persistent profile") == null,
+                        "persistent control still appears in profile details");
+                JPopupMenu profileMenu = sidebar.profileMenu(saved);
+                menuItem(profileMenu, "Set Default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
-                JCheckBox persistence = checkbox(sidebar, "Persistent profile");
+                JCheckBoxMenuItem persistence = (JCheckBoxMenuItem) menuItem(sidebar.profileMenu(saved), "Set Persistent");
                 persistence.doClick();
                 ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
+                ProfileImportTest.check(menuItem(sidebar.profileMenu(store.find("default")), "Delete").isEnabled() == false,
+                        "existing-bindings profile can be deleted");
+                ProfileImportTest.check(menuItem(sidebar.profileMenu(saved), "Delete").isEnabled(),
+                        "named profile delete action is disabled");
                 selector.setSelectedValue(store.find("default"), true);
                 ProfileImportTest.check(Arrays.equals(legacy, Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"))), "switching damaged legacy bindings");
                 selector.setSelectedValue(saved, true);

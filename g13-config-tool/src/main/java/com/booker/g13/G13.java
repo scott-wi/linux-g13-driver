@@ -61,7 +61,7 @@ public class G13 extends JPanel {
 		try {
             editingProfile = profileStore.persistentProfile().orElse(profileStore.defaultProfile());
             Configs.selectProfile(profileStore.directory(editingProfile));
-        } catch (IOException e) { showProfileError(e); }
+        } catch (IOException | IllegalArgumentException e) { showProfileError(e); }
         // Load all configurations and initialize the UI.
 		if (!loadConfiguration()) throw new IllegalStateException("Cannot load G13 configuration");
 		
@@ -87,10 +87,13 @@ public class G13 extends JPanel {
 		
         profileSidebar = new ProfileSidebar(profileStore, new ProfileSidebar.Listener() {
             @Override public void selected(ProfileStore.Profile profile) {
-                if (macroEditorPanel.isRecording()) {
-                    JOptionPane.showMessageDialog(G13.this, "Stop macro recording before switching profiles.");
-                    profileSidebar.refresh(editingProfile);
-                } else selectProfile(profile);
+                if (!profileChangeAllowed()) profileSidebar.refresh(editingProfile);
+                else selectProfile(profile);
+            }
+            @Override public boolean profileChangeAllowed() {
+                if (!macroEditorPanel.isRecording()) return true;
+                JOptionPane.showMessageDialog(G13.this, "Stop macro recording before changing profiles.");
+                return false;
             }
             @Override public void importRequested() { importProfile(); }
             @Override public void themeChanged(boolean dark) {
@@ -165,7 +168,7 @@ public class G13 extends JPanel {
             ProfileStore.Profile imported = profileStore.save(result);
             selectProfile(imported);
             profileSidebar.refresh(imported);
-        } catch (IOException e) { showProfileError(e); }
+        } catch (IOException | IllegalArgumentException e) { showProfileError(e); }
     }
 
     private void showProfileError(Exception e) {
