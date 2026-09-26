@@ -114,9 +114,16 @@ int main(int argc, char** argv) {
         assert(device.bindings == 2); // any physical key can select a layout
         std::ofstream(dir + "/bindings-2.properties") << "format=2\nG1=p,k.164\n";
         device.loadBindings();
+        assert(device.stick_mode == STICK_KEYS);
         device.actions[1]->set(1);
         device.actions[1]->set(0);
         assert(contains(164, 1) && contains(164, 0)); // media key range is accepted
+        std::ofstream(dir + "/bindings-2.properties") << "format=2\nstick=absolute\nG35=p,k.289\n";
+        device.loadBindings();
+        assert(device.stick_mode == STICK_ABSOLUTE); // imported joystick mode is applied per layout
+        device.actions[35]->set(1);
+        device.actions[35]->set(0);
+        assert(contains(289, 1) && contains(289, 0));
         std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
         std::ofstream(root + "/persistent-profile") << "default\n";
         device.last_profile_scan = 0;

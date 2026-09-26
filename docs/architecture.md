@@ -30,8 +30,8 @@ Both apps use `$XDG_CONFIG_HOME/g13`, falling back to `~/.config/g13`. Existing 
 
 - `bindings-0.properties` through `bindings-2.properties` hold the editable M1–M3 layouts. `bindings-3.properties` remains for storage compatibility. A binding such as `G0=b,1` switches any control to M2; physical M1–M3 receive these actions by default, and M1–MR can all be remapped. Selecting a layout in the GUI only changes the layout being edited.
 - `macro-0.properties` through `macro-199.properties` belong to that profile. Driver and GUI legacy defaults still differ; imports explicitly write all banks and macro slots.
-- `G0=p,k.17` maps printed G1 to Linux keycode 17. `G0=c,42,17` holds Shift and W until release. `G0=m,2,1` assigns macro 2 with repeat while held. `color=0,0,255` sets blue backlighting.
-- Macro sequences use `kd.<code>`, `ku.<code>`, and `d.<milliseconds>`. Repeat 0 runs once, 1 repeats while held; the driver also accepts fixed repeat counts greater than 1.
+- `G0=p,k.17` maps printed G1 to Linux keycode 17. `G0=c,42,17` holds Shift and W until release. `G0=m,2,1` assigns macro 2 with repeat while held. `color=0,0,255` sets blue backlighting. `stick=absolute` exposes the thumbstick as analog X/Y axes; `stick=keys` uses its four configurable direction bindings.
+- Macro sequences use `kd.<code>`, `ku.<code>`, and `d.<milliseconds>`. Repeat 0 runs once, 1 repeats while held; the driver also accepts fixed repeat counts greater than 1. Editable text macros store `type=text`, `text`, and `characterDelay` metadata while keeping a generated key-event `sequence` for the driver.
 
 `LogitechProfileImporter` uses the JDK XML parser to produce a conversion result without writing files. `ProfileStore` stages a complete named profile before atomically exposing it; stable IDs and separation from Swing allow later folder import to reuse these operations. See [Importing Windows profiles](profile-import.md) for supported actions and limits.
 

@@ -155,7 +155,7 @@ public class G13 extends JPanel {
         try {
             var result = LogitechProfileImporter.read(chooser.getSelectedFile().toPath());
             String summary = result.name() + "\n" + result.importedAssignments()
-                    + " assignments across M1–M3; " + result.macros().size() + " key macros.\n\n"
+                    + " assignments across M1–M3; " + result.macros().size() + " macros.\n\n"
                     + String.join("\n", result.warnings())
                     + "\n\nImport as a separate profile? Add a Linux executable afterward for automatic selection.";
             JTextArea preview = new JTextArea(summary, 18, 65);
@@ -231,6 +231,10 @@ public class G13 extends JPanel {
 			// Set default display values.
 			k.setMappedValue("Unassigned");
 			k.setRepeats("N/A");
+			if (i >= 36 && i <= 39 && "absolute".equals(keyBindings[bindingNum].getProperty("stick"))) {
+				k.setMappedValue("Analog joystick");
+				continue;
+			}
 			
 			if (val != null && !val.isBlank()) {
 				// The value string is parsed to determine the binding type and value.

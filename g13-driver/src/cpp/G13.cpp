@@ -192,6 +192,9 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
                 if (r <= 255 && g <= 255 && b <= 255) setColor(r, g, b);
             }
         }
+        else if (key == "stick") {
+            stick_mode = value == "absolute" ? STICK_ABSOLUTE : STICK_KEYS;
+        }
         else if (!key.empty() && key.rfind("G", 0) == 0) {
             try {
                 int gKey = std::stoi(key.substr(1));
@@ -260,6 +263,7 @@ void G13::loadBindings() {
         action = std::make_unique<G13Action>();
     }
     std::fill(std::begin(bank_targets), std::end(bank_targets), -1);
+    stick_mode = STICK_KEYS;
 
     // Update timestamp for Live-Reload
     struct stat file_stat;

@@ -46,6 +46,7 @@ public class KeybindPanel extends JPanel {
 	
 	// --- UI Components for Screen Color ---
 	private final JButton colorChangeButton = new JButton("Choose screen color");
+	private final JComboBox<String> joystickMode = new JComboBox<>(new String[]{"Mapped keys", "Analog joystick"});
 	
 	// --- State Variables ---
 	private int bindingsId = -1; // The ID of the currently loaded button layout (0-2).
@@ -140,6 +141,7 @@ public class KeybindPanel extends JPanel {
 		bankButton.addActionListener(e -> updateComponentStateAndSave());
 		bankSelectionBox.addActionListener(e -> saveBindings());
 		chooseKeyButton.addActionListener(e -> chooseLinuxKey());
+		joystickMode.addActionListener(e -> saveJoystickMode());
 
 		passthroughText.addKeyListener(new KeyAdapter() {
 			@Override
@@ -226,6 +228,7 @@ public class KeybindPanel extends JPanel {
 			System.err.println("Invalid color format in properties: " + val);
 			setColorButton(Color.WHITE); // Fallback to white.
 		}
+		joystickMode.setSelectedIndex("absolute".equals(bindings.getProperty("stick")) ? 1 : 0);
 		
 		setSelectedKey(null); // Reset selection when bindings change.
 		loadingData = false;
@@ -242,7 +245,7 @@ public class KeybindPanel extends JPanel {
 		
 		final boolean isKeySelected = (key != null);
 		// Enable or disable all controls based on whether a key is selected.
-		final JComponent[] all = { colorChangeButton, macroButton, macroSelectionBox, passthroughButton,
+		final JComponent[] all = { macroButton, macroSelectionBox, passthroughButton,
 				passthroughText, chooseKeyButton, repeatsCheckBox, bankButton, bankSelectionBox };
 		for (final JComponent c : all) {
 			c.setEnabled(isKeySelected);
@@ -324,12 +327,29 @@ public class KeybindPanel extends JPanel {
 	 * @return The configured JPanel for color selection.
 	 */
 	private JPanel createColorPanel() {
-		final JPanel p = new JPanel(new BorderLayout(12, 0));
+		final JPanel p = new JPanel(new GridBagLayout());
 		p.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
-		p.add(new JLabel("Screen color"), BorderLayout.WEST);
-		p.add(colorChangeButton, BorderLayout.CENTER);
+		GridBagConstraints c = new GridBagConstraints();
+		c.gridx = 0; c.gridy = 0; c.anchor = GridBagConstraints.WEST; c.insets = new Insets(0, 0, 8, 12);
+		p.add(new JLabel("Screen color"), c);
+		c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL; c.insets = new Insets(0, 0, 8, 0);
+		p.add(colorChangeButton, c);
+		c.gridx = 0; c.gridy = 1; c.weightx = 0; c.fill = GridBagConstraints.NONE; c.insets = new Insets(0, 0, 0, 12);
+		p.add(new JLabel("Joystick mode"), c);
+		c.gridx = 1; c.weightx = 1; c.fill = GridBagConstraints.HORIZONTAL; c.insets = new Insets(0, 0, 0, 0);
+		p.add(joystickMode, c);
 		colorChangeButton.addActionListener(e -> changeScreenColor());
 		return p;
+	}
+
+	private void saveJoystickMode() {
+		if (loadingData || bindings == null || bindingsId < 0) return;
+		bindings.setProperty("stick", joystickMode.getSelectedIndex() == 1 ? "absolute" : "keys");
+		try { Configs.saveBindings(bindingsId, bindings); }
+		catch (IOException error) {
+			JOptionPane.showMessageDialog(this, "Could not save joystick mode: " + error.getMessage(),
+					"Error", JOptionPane.ERROR_MESSAGE);
+		}
 	}
 	
 	/**

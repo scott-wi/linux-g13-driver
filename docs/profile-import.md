@@ -22,11 +22,14 @@ Supported actions:
 - Standard keyboard keys, including modifiers, arrows, function keys F1–F12, and numeric keypad keys.
 - Key combinations such as Shift+W, held until the physical G13 button is released. The GUI displays imported chords; selecting a passthrough key or macro replaces them. A chord editor is not included yet.
 - Balanced key-down/key-up macros with delays up to 60 seconds per step. Single playback and repeat while held are supported, including repeat delays.
+- Text blocks using printable US-keyboard characters, tab, and newline. They remain editable as Text macros in the macro editor; newline sends Enter, and an optional per-character delay can be set.
+- M1, M2, and M3 functions, imported as editable layout-switch bindings.
+- Joystick actions on G25–G29, imported as per-layout analog joystick mode with the stick press exposed as a gamepad button. The GUI's Joystick mode selector can switch a layout between analog axes and mapped direction keys.
 - Per-bank backlight colors.
 
 Printed G1–G22 map to internal indices 0–21. Logitech G23–G25 map to thumb buttons/joystick press (33–35). G26–G29 map clockwise from up to the driver's directional keys (36, 38, 39, 37). Validate these controls on your device as part of testing.
 
-Unsupported assigned actions are left unassigned and listed in the preview: text blocks, analog joystick mode, mouse/system/bank commands, toggle repeat, repeating single-keystroke actions, unknown keys, and unsupported macro events. Lua scripts are never executed. Windows executable paths are saved as reference metadata and do not create Linux application matching rules.
+Unsupported assigned actions are left unassigned and listed in the preview: unsupported mouse/DPI commands, toggle repeat, repeating single-keystroke actions, unknown keys, non-US text characters, and unsupported macro events. Lua scripts are never executed. Windows executable paths are saved as reference metadata and do not create Linux application matching rules.
 
 Only one profile per XML is accepted. Malformed XML, non-Logitech documents, ambiguous duplicate assignments, and exports without G13 assignments are rejected. XML DTDs/external entities are disabled; the source size limit is 4 MiB. Import leaves the source export unchanged.
 
