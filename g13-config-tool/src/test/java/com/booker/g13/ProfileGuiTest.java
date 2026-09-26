@@ -156,6 +156,51 @@ public class ProfileGuiTest {
         for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
     }
 
+    static void checkMacroDropdownClicks() {
+        // Exercise the installed popup listener without creating a desktop popup or grabbing input.
+        class ProbeCombo extends ClickComboBox<Properties> {
+            boolean popup;
+            @Override public void setPopupVisible(boolean visible) { popup = visible; }
+            @Override public boolean isPopupVisible() { return popup; }
+        }
+        ProbeCombo combo = new ProbeCombo();
+        combo.addItem(new Properties());
+        Properties second = new Properties();
+        second.setProperty("name", "Second macro");
+        combo.addItem(second);
+        combo.setSize(220, 40);
+        combo.doLayout();
+        for (boolean dark : new boolean[] {false, true}) {
+            UiTheme.apply(dark);
+            SwingUtilities.updateComponentTreeUI(combo);
+            combo.doLayout();
+            Component arrow = find(combo, JButton.class);
+            for (Component target : java.util.List.of(combo, arrow)) {
+                Point point = new Point(target.getWidth() / 2, target.getHeight() / 2);
+                combo.setPopupVisible(false);
+                target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_PRESSED,
+                        0, java.awt.event.InputEvent.BUTTON1_DOWN_MASK, point.x, point.y, 1, false,
+                        java.awt.event.MouseEvent.BUTTON1));
+                ProfileImportTest.check(!combo.isPopupVisible(), "macro dropdown opened before click completed");
+                target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_RELEASED,
+                        0, 0, point.x, point.y, 1, false, java.awt.event.MouseEvent.BUTTON1));
+                ProfileImportTest.check(!combo.isPopupVisible(), "macro dropdown opened on release");
+                previewClick(target, point, 1, java.awt.event.MouseEvent.BUTTON1);
+                ProfileImportTest.check(combo.isPopupVisible(), "macro dropdown did not stay open after completed click");
+                combo.setSelectedIndex(0);
+                var popup = (javax.swing.plaf.basic.BasicComboPopup) combo.getUI().getAccessibleChild(combo, 0);
+                JList<?> items = popup.getList();
+                items.setSelectedIndex(1);
+                var release = new java.awt.event.MouseEvent(items, java.awt.event.MouseEvent.MOUSE_RELEASED,
+                        0, 0, 5, 5, 1, false, java.awt.event.MouseEvent.BUTTON1);
+                for (var listener : items.getMouseListeners()) listener.mouseReleased(release);
+                ProfileImportTest.check(combo.getSelectedItem() == second && !combo.isPopupVisible(),
+                        "choosing a popup item did not select the macro and close the menu");
+            }
+        }
+        UiTheme.apply(false);
+    }
+
     static void checkHardwareHighlights(ImageMap map, Path output) throws Exception {
         map.setSize(1100, 900);
         map.clearHardwareState();
@@ -328,6 +373,7 @@ public class ProfileGuiTest {
     public static void main(String[] args) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
+                checkMacroDropdownClicks();
                 UiTheme.apply(false);
                 Properties validState = new Properties();
                 validState.setProperty("profile", "default");

@@ -29,7 +29,7 @@ public class MacroEditorPanel extends JPanel {
 	private static final ImageIcon DELAY_ICON = ImageIconHelper.loadEmbeddedImage("/com/booker/g13/images/pause.png", 16, 16);
 
 	// --- UI Components ---
-	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
+	private final JComboBox<Properties> macroSelectionBox = new ClickComboBox<>();
 	private final DefaultListModel<String> listModel = new DefaultListModel<>();
 	private final JList<String> macroList = new JList<>(listModel);
 	private final JTextField nameText = new JTextField();
