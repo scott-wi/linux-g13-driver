@@ -42,7 +42,10 @@ public class ProfileImportTest {
         check("m,0,1".equals(result.banks()[2].getProperty("G36")), "bank/macro mapping");
         check("kd.18,d.10,ku.18,d.50".equals(result.macros().get(0).getProperty("sequence")), "macro timing");
         check("18,52,171".equals(result.banks()[1].getProperty("color")), "bank color");
-        check(result.banks()[0].getProperty("G1") == null && result.banks()[3].size() == 1, "unsupported stays unassigned");
+        check(result.banks()[0].getProperty("G1") == null && result.banks()[3].size() == 5, "unsupported stays unassigned");
+        check("2".equals(result.banks()[0].getProperty("format"))
+                && "b,0".equals(result.banks()[0].getProperty("G29"))
+                && "b,2".equals(result.banks()[0].getProperty("G31")), "default layout switches missing");
         check(result.warnings().stream().anyMatch(w -> w.contains("textblock")), "unsupported warning");
         check(LogitechProfileImporter.contextKey("G27") == 38 && LogitechProfileImporter.contextKey("G28") == 39
             && LogitechProfileImporter.contextKey("G29") == 37, "stick clockwise mapping");
@@ -66,6 +69,10 @@ public class ProfileImportTest {
         check(Arrays.equals(previous, Files.readAllBytes(legacy)), "legacy configuration overwritten");
         check(store.defaultProfile().id().equals("default"), "import changed default implicitly");
         check(store.persistentProfile().isEmpty(), "import enabled persistence implicitly");
+        saved = store.update(saved, "Renamed game", "game", null);
+        check(saved.name().equals("Renamed game"), "profile rename not saved");
+        try { store.update(duplicate, "Renamed game", "", null); throw new AssertionError("duplicate profile name accepted"); }
+        catch (IllegalArgumentException expected) { }
         store.setDefault(saved);
         check(store.defaultProfile().id().equals(saved.id()), "default selection round trip");
         store.setPersistent(saved);
@@ -82,6 +89,8 @@ public class ProfileImportTest {
         check(store.persistentProfile().isEmpty(), "incomplete persistent profile did not fall back");
         check(store.defaultProfile().id().equals("default"), "incomplete default did not fall back");
         check("game.exe".equals(ProfileStore.normalizeApplication("C:\\Games\\game.exe")), "application basename normalization");
+        check(JavaToLinuxKeymapping.cKeyCodeToString(272).equals("Mouse — Left button")
+                && JavaToLinuxKeymapping.cKeyCodeToString(164).equals("Media — Play / pause"), "extended input catalog missing");
         try { ProfileStore.normalizeApplication("bad;command"); throw new AssertionError("unsafe application accepted"); }
         catch (IllegalArgumentException expected) { }
         System.out.println("Profile import, security, mapping and storage tests passed.");

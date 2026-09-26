@@ -112,10 +112,9 @@ bool UInput::create_uinput() {
 	ioctl(file, UI_SET_ABSBIT, ABS_X);
 	ioctl(file, UI_SET_ABSBIT, ABS_Y);
 
-	// Enable all possible key codes
-	for (int i = 0; i < 256; i++)
+    // Advertise the complete Linux EV_KEY range, including media and mouse buttons.
+    for (int i = 0; i <= KEY_MAX; i++)
 		ioctl(file, UI_SET_KEYBIT, i);
-	ioctl(file, UI_SET_KEYBIT, BTN_THUMB);
 
 	// Write configuration
 	int retcode = write(file, &uinp, sizeof(uinp));

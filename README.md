@@ -104,7 +104,7 @@ g13-gui
 
 This will bring up the UI.
 
-Profiles: The top 4 buttons under the LCD (M1, M2, M3, MR) switch between binding profiles.
+Button layouts: Use the M1–M3 selector above the keypad to edit three layouts. Layout-switch actions default to the physical M1–M3 buttons, but can be assigned to any G13 control. The M buttons and MR can also be remapped as ordinary buttons.
 
 Save: Changes are saved automatically to `~/.config/g13/bindings-*.properties`.
 
@@ -112,15 +112,13 @@ Live Reload: The driver automatically detects file changes and reloads the confi
 
 ![Config Tool Screenshot](docs/ConfigTool.png)
 
-The top 4 buttons under the LCD screen select the bindings (M1-M3, MR).
-
 > **Note:** The driver watches the active binding file, but macro-only changes and some rapid edits may require switching banks or restarting. See [the architecture guide](docs/architecture.md) for the current reload limitations.
 
 ### Use the built-in Mapping Set (for external tools)
 
 The driver now includes a fixed default mapping. This means the GUI is not strictly necessary if you prefer other tools. You can map the keys using software like **Input Remapper**.
 
-The physical M1–MR buttons select the driver bank. Clicking them in the GUI chooses the bank to edit.
+Binding files can assign `b,0`, `b,1`, or `b,2` to any control to switch layouts. Physical M1–M3 use these actions by default. Selecting a layout in the GUI only chooses the layout being edited.
 
 ### Manually create your own Mapping Set
 
@@ -169,3 +167,5 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 ### Windows profile import
 
 The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Profiles appear with their icons in a list on the left. Add a Linux executable name for automatic selection, designate one fallback profile as Default, or mark one Persistent to suspend automatic changes. The interface includes a persistent light/dark appearance setting, and the interactive keypad scales with the window while keeping its hit regions aligned. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.
+
+Profile names are editable. Each profile has three button layouts, M1–M3. A layout-switch action can be assigned to any G13 control, including the physical M keys; those keys can instead send an ordinary keyboard, mouse, media, or system input. Existing installations migrate the former fixed M1–M3 behavior to explicit layout-switch assignments when opened in the updated GUI.

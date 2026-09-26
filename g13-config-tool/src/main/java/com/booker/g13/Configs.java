@@ -81,6 +81,10 @@ public class Configs {
 			for (final String [] binding: defaultBindings) {
 				props.put(binding[0], "p,k." + binding[1]);
 			}
+			props.setProperty("format", "2");
+			props.setProperty("G29", "b,0");
+			props.setProperty("G30", "b,1");
+			props.setProperty("G31", "b,2");
 			saveBindings(item, props);
 			return props;
 		}
@@ -88,6 +92,14 @@ public class Configs {
 		final Properties props = new Properties();
 		try (FileInputStream fis = new FileInputStream(file.toFile())) {
 			props.load(fis);
+		}
+		if (!"2".equals(props.getProperty("format"))) {
+			// These physical buttons were hardcoded before format 2, so their saved values never ran.
+			props.setProperty("G29", "b,0");
+			props.setProperty("G30", "b,1");
+			props.setProperty("G31", "b,2");
+			props.setProperty("format", "2");
+			saveBindings(item, props);
 		}
 		return props;
 	}

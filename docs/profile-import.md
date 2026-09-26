@@ -6,14 +6,16 @@ Build and deploy both the driver and GUI from this version. Older installed driv
 2. Select one Logitech Gaming Software `.xml` export.
 3. Review the assignment count and warnings. Cancel makes no configuration changes.
 4. Import saves a separate named profile and opens it for editing. Duplicate names receive a suffix; previous profiles are preserved.
-5. Optionally choose an icon, then enter the Linux executable name used to match the profile. A full path is reduced to its executable basename.
+5. Optionally edit its name, choose an icon, then enter the Linux executable name used to match the profile. A full path is reduced to its executable basename.
 6. Use **Set as default** for the fallback when no configured application is running. Enable **Persistent profile** to keep one profile selected regardless of running applications; disable it to resume automatic selection.
+
+Imported M1–M3 layouts receive explicit switch assignments on the physical M keys. Choose a layout above the keypad to edit it. Any control can switch to M1, M2, or M3, and the M keys can be reassigned like other controls. **Choose…** under Pass through includes keyboard keys, mouse buttons, media controls, and common system keys.
 
 Selecting a profile in the left list changes which profile is being edited; it does not change the driver's selection rule. Stop macro recording before changing the editing profile. The driver re-evaluates rules once per second and resets to bank 0 when the selected profile changes.
 
 ## Conversion
 
-The importer reads active G13 assignments only, ignoring backup assignments and mappings belonging to mice, keyboards, or headsets. Windows M1–M3 become banks 0–2; bank 3 is empty. The GUI and driver now use the actual M1–MR buttons for bank selection, correcting the previous LCD-button mapping. Unspecified assignments remain unassigned rather than guessing Logitech's implicit defaults.
+The importer reads active G13 assignments only, ignoring backup assignments and mappings belonging to mice, keyboards, or headsets. Windows M1–M3 become layouts 0–2; layout 3 remains empty for storage compatibility. Imported profiles explicitly map physical M1–M3 to the corresponding layouts, while all M buttons and MR remain available for reassignment. Unspecified assignments remain unassigned rather than guessing Logitech's implicit defaults.
 
 Supported actions:
 

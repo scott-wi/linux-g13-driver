@@ -51,6 +51,10 @@ public final class LogitechProfileImporter {
         for (int i = 0; i < banks.length; i++) {
             banks[i] = new Properties();
             banks[i].setProperty("color", "255,255,255");
+            banks[i].setProperty("format", "2");
+            banks[i].setProperty("G29", "b,0");
+            banks[i].setProperty("G30", "b,1");
+            banks[i].setProperty("G31", "b,2");
         }
         List<String> warnings = new ArrayList<>();
         List<String> targets = new ArrayList<>();
@@ -107,7 +111,7 @@ public final class LogitechProfileImporter {
         for (Element script : children(profile, "script")) if (!script.getTextContent().isBlank()) {
             warnings.add("Lua scripts are not imported or executed."); break;
         }
-        warnings.add("Only explicit active G13 assignments are imported. Missing assignments and the fourth bank remain unassigned.");
+        warnings.add("Only explicit active G13 assignments are imported. Missing assignments remain unassigned; M1–M3 switch layouts by default.");
         if (!targets.isEmpty()) warnings.add("Windows executable paths are saved for reference; add the Linux executable in the profile sidebar.");
         String name = profile.getAttribute("name").strip();
         return new Result(name.isEmpty() ? "Imported profile" : name, profile.getAttribute("guid"),

@@ -8,14 +8,12 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import javax.swing.*;
 
 /** Scalable G13 image map. The image, outlines, and hit testing share one transform. */
 public class ImageMap extends JComponent {
     private static final long serialVersionUID = 1L;
     public static final ImageIcon G13_KEYPAD = ImageIconHelper.loadEmbeddedImage("/com/booker/g13/images/g13.gif");
-    private static final Set<Integer> BINDING_SWITCH_KEYS = Set.of(29, 30, 31, 32);
     private final List<ImageMapListener> listeners = new ArrayList<>();
     private Key selected;
     private Key mouseover;
@@ -99,9 +97,6 @@ public class ImageMap extends JComponent {
     @Override public String getToolTipText(MouseEvent event) {
         Key key = keyAt(event.getPoint());
         if (key == null) return null;
-        if (BINDING_SWITCH_KEYS.contains(key.getG13KeyCode()))
-            return "<html><b>M" + (key.getG13KeyCode() - 28) + "</b><br>Switches to binding bank "
-                    + (key.getG13KeyCode() - 28) + "</html>";
         return "<html><b>G" + key.getG13KeyCode() + "</b><br>" + html(key.getMappedValue())
                 + ("N/A".equals(key.getRepeats()) ? "" : "<br>Repeats: " + html(key.getRepeats())) + "</html>";
     }

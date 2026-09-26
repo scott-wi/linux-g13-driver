@@ -23,6 +23,7 @@ public class JavaToLinuxKeymapping {
         public KeyMapping(String name, int linuxCode, int javaCode) {
             this(name, linuxCode, javaCode, KeyEvent.KEY_LOCATION_UNKNOWN);
         }
+        @Override public String toString() { return name; }
     }
 
     /** The master list of all defined key mappings. */
@@ -135,7 +136,41 @@ public class JavaToLinuxKeymapping {
             new KeyMapping("PgDn", 109, KeyEvent.VK_PAGE_DOWN),
             new KeyMapping("Insert", 110, KeyEvent.VK_INSERT),
             new KeyMapping("Del", 111, KeyEvent.VK_DELETE),
-            new KeyMapping("Pause", 119, KeyEvent.VK_PAUSE)
+            new KeyMapping("Pause", 119, KeyEvent.VK_PAUSE),
+            new KeyMapping("Media — Mute", 113, -1),
+            new KeyMapping("Media — Volume down", 114, -1),
+            new KeyMapping("Media — Volume up", 115, -1),
+            new KeyMapping("System — Power", 116, -1),
+            new KeyMapping("Media — Next track", 163, -1),
+            new KeyMapping("Media — Play / pause", 164, -1),
+            new KeyMapping("Media — Previous track", 165, -1),
+            new KeyMapping("Media — Stop", 166, -1),
+            new KeyMapping("Media — Record", 167, -1),
+            new KeyMapping("Media — Rewind", 168, -1),
+            new KeyMapping("Media — Fast forward", 208, -1),
+            new KeyMapping("Browser — Back", 158, -1),
+            new KeyMapping("Browser — Forward", 159, -1),
+            new KeyMapping("Browser — Home", 172, -1),
+            new KeyMapping("Browser — Refresh", 173, -1),
+            new KeyMapping("Browser — Bookmarks", 156, -1),
+            new KeyMapping("Application — Mail", 155, -1),
+            new KeyMapping("Application — Calculator", 140, -1),
+            new KeyMapping("Application — Search", 217, -1),
+            new KeyMapping("Display — Brightness down", 224, -1),
+            new KeyMapping("Display — Brightness up", 225, -1),
+            new KeyMapping("System — Display switch", 227, -1),
+            new KeyMapping("Keyboard light — Toggle", 228, -1),
+            new KeyMapping("Keyboard light — Down", 229, -1),
+            new KeyMapping("Keyboard light — Up", 230, -1),
+            new KeyMapping("Media — Microphone mute", 248, -1),
+            new KeyMapping("Mouse — Left button", 272, -1),
+            new KeyMapping("Mouse — Right button", 273, -1),
+            new KeyMapping("Mouse — Middle button", 274, -1),
+            new KeyMapping("Mouse — Side button", 275, -1),
+            new KeyMapping("Mouse — Extra button", 276, -1),
+            new KeyMapping("Mouse — Forward", 277, -1),
+            new KeyMapping("Mouse — Back", 278, -1),
+            new KeyMapping("Mouse — Task", 279, -1)
     );
 
     /** Map for quick lookup from Linux keycode to KeyMapping data. */
@@ -162,6 +197,8 @@ public class JavaToLinuxKeymapping {
         return C_CODE_TO_DATA.getOrDefault(keyCode, new KeyMapping("Unknown (" + keyCode + ")", keyCode, -1))
                 .name();
     }
+
+    public static List<KeyMapping> mappings() { return MAPPINGS; }
 
     /**
      * Converts a Java KeyEvent to its corresponding Linux driver keycode.
