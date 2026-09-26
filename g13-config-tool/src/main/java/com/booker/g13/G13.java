@@ -133,7 +133,12 @@ public class G13 extends JPanel {
         updateSidebarButtons(true, true);
         p.add(sidebarHandle(profilesVisible), BorderLayout.WEST);
         p.add(sidebarHandle(editorVisible), BorderLayout.EAST);
-        theatre.setToolTipText("Hide both sidebars and zoom to the assignable keys");
+        theatre.setName("Theatre");
+        theatre.setText(null);
+        theatre.setIcon(new TheatreIcon());
+        theatre.setMargin(new java.awt.Insets(7, 8, 7, 8));
+        theatre.getAccessibleContext().setAccessibleName("Theatre mode");
+        theatre.setToolTipText("Theatre mode — hide both sidebars and focus the keypad");
         viewBar.add(theatre);
         profilesVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
         editorVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
