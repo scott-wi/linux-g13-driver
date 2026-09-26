@@ -156,6 +156,35 @@ public class ProfileGuiTest {
         for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
     }
 
+    static void checkHardwareHighlights(ImageMap map, Path output) throws Exception {
+        map.setSize(1100, 900);
+        map.clearHardwareState();
+        map.setHardwareState(Set.of(), Map.of(), 0);
+        BufferedImage before = render(map, output);
+        map.setHardwareState(Set.of(0, 3, 30, 35, 36), Map.of(0, 1L, 3, 1L), 10_000_000L);
+        BufferedImage pressed = render(map, output);
+        Point pixel = map.imagePointToComponent(82, 191);
+        ProfileImportTest.check(before.getRGB(pixel.x, pixel.y) != pressed.getRGB(pixel.x, pixel.y),
+                "physical press did not change the painted key");
+        ProfileImportTest.check(map.hardwareHighlighted(0) && map.hardwareHighlighted(30)
+                && map.hardwareHighlighted(35) && map.hardwareHighlighted(36) && !map.hardwareHighlighted(1),
+                "hardware highlights did not match physical controls");
+        map.setHardwareState(Set.of(), Map.of(0, 1L, 3, 1L), 20_000_000L);
+        ProfileImportTest.check(map.hardwareHighlighted(0), "short tap disappeared before it could be seen");
+        map.setHardwareState(Set.of(), Map.of(0, 1L, 3, 1L), 200_000_000L);
+        ProfileImportTest.check(!map.hardwareHighlighted(0), "released key highlight did not expire");
+        map.setHardwareState(Set.of(0), Map.of(0, 1L, 3, 1L), 500_000_000L);
+        ProfileImportTest.check(map.hardwareHighlighted(0), "held key stopped highlighting");
+        map.setHardwareState(Set.of(), Map.of(0, 1L, 3, 1L), 501_000_000L);
+        ProfileImportTest.check(!map.hardwareHighlighted(0), "long hold did not clear on release");
+        map.setHardwareState(Set.of(), Map.of(0, 2L, 3, 1L), 600_000_000L);
+        ProfileImportTest.check(map.hardwareHighlighted(0), "tap entirely between polls was missed");
+        map.clearHardwareState();
+        map.setHardwareState(Set.of(), Map.of(0, 2L), 700_000_000L);
+        ProfileImportTest.check(!map.hardwareHighlighted(0), "old press history flashed after reconnect");
+        map.clearHardwareState();
+    }
+
     static void checkHardwareLayouts(G13 gui) throws Exception {
         ImageMap map = find(gui, ImageMap.class);
         KeybindPanel editor = find(gui, KeybindPanel.class);
@@ -308,6 +337,15 @@ public class ProfileGuiTest {
                 validState.setProperty("layout-event", "12345");
                 ProfileImportTest.check("12345".equals(DriverState.parse(validState).orElseThrow().layoutEvent()),
                         "driver layout event was not parsed");
+                validState.setProperty("pressed", "0,29,39");
+                validState.setProperty("press-events", "123," + "0,".repeat(38) + "456");
+                var inputState = DriverState.parse(validState).orElseThrow();
+                ProfileImportTest.check(inputState.pressedKeys().equals(Set.of(0, 29, 39))
+                        && inputState.pressEvents().equals(Map.of(0, 123L, 39, 456L)), "hardware input state parsing failed");
+                validState.setProperty("pressed", "40");
+                ProfileImportTest.check(DriverState.parse(validState).isEmpty(), "invalid hardware key accepted");
+                validState.remove("pressed");
+                validState.remove("press-events");
                 validState.setProperty("layout", "7");
                 ProfileImportTest.check(DriverState.parse(validState).isEmpty(), "invalid driver layout state was accepted");
                 // Initialize the legacy files as a real first launch would.
@@ -461,6 +499,7 @@ public class ProfileGuiTest {
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
+                checkHardwareHighlights(imageMap, Path.of(args[0]).resolveSibling("g13-hardware-pressed.png"));
                 checkHardwareLayouts(gui);
                 checkPreviewDoubleClick(gui);
                 checkSidebarResize(gui);

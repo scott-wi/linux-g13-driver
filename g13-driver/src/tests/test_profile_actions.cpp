@@ -192,5 +192,35 @@ int main(int argc, char** argv) {
         macro.setRepeats(1);
         macro.set(1);
     } // exercises stop-before-worker-start race
-    std::cout << "Native bank mapping, profile reload, chord lifetime and macro cancellation tests passed.\n";
+    {
+        G13 device(nullptr);
+        device.handle_key_state(0, 1); // even an unassigned physical key is visible
+        device.handle_key_state(35, 1);
+        assert(device.hardware_pressed[0] && device.hardware_pressed[35]);
+        const auto stamp = device.press_events[0];
+        assert(stamp > 0);
+        device.publish_state();
+        assert(!device.input_state_dirty);
+        device.handle_key_state(0, 1);
+        assert(device.press_events[0] == stamp && !device.input_state_dirty);
+        device.handle_key_state(0, 0);
+        assert(!device.hardware_pressed[0] && device.press_events[0] == stamp && device.input_state_dirty);
+        device.publish_state();
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("pressed=35\n") != std::string::npos);
+            assert(contents.find("press-events=" + std::to_string(stamp)) != std::string::npos);
+        }
+        device.stick_mode = STICK_ABSOLUTE;
+        unsigned char stick[G13_REPORT_SIZE] = {};
+        device.parse_joystick(stick);
+        assert(device.hardware_pressed[36] && device.hardware_pressed[37]);
+        stick[1] = 128; stick[2] = 128;
+        device.parse_joystick(stick);
+        assert(!device.hardware_pressed[36] && !device.hardware_pressed[37]);
+        device.actions[1]->set(1);
+        assert(!device.hardware_pressed[1]); // synthetic output does not masquerade as physical input
+    }
+    std::cout << "Native bank mapping, hardware input state, profile reload, chord lifetime and macro cancellation tests passed.\n";
 }

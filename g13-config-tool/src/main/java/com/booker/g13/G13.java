@@ -41,7 +41,7 @@ public class G13 extends JPanel {
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
 	private final JComboBox<String> layoutSelector = new JComboBox<>(new String[]{"M1", "M2", "M3"});
 	private final JLabel activeLayout = new JLabel("Device: checking…");
-	private final Timer stateTimer = new Timer(500, event -> refreshDriverState());
+	private final Timer stateTimer = new Timer(50, event -> refreshDriverState());
 	private boolean changingLayout;
     private DriverState.Snapshot lastDriverState;
     private final JPanel editorSidebar = new JPanel(new BorderLayout(0, 12));
@@ -275,6 +275,7 @@ public class G13 extends JPanel {
 		if (state.isEmpty()) {
 			activeLayout.setText("Device: unavailable");
             lastDriverState = null;
+            g13Label.clearHardwareState();
 			return;
 		}
         applyDriverState(state.get());
@@ -282,6 +283,7 @@ public class G13 extends JPanel {
 
     // Driven by the background timer, independent of window or keyboard focus.
     void applyDriverState(DriverState.Snapshot snapshot) {
+        g13Label.setHardwareState(snapshot.pressedKeys(), snapshot.pressEvents(), System.nanoTime());
         boolean layoutChanged = lastDriverState == null || snapshot.layout() != lastDriverState.layout()
                 || !snapshot.layoutEvent().equals(lastDriverState.layoutEvent());
         lastDriverState = snapshot;

@@ -8,6 +8,10 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.HashMap;
 import javax.swing.*;
 
 /** Scalable G13 image map. The image, outlines, and hit testing share one transform. */
@@ -18,6 +22,32 @@ public class ImageMap extends JComponent {
     private Key selected;
     private Key mouseover;
     private boolean focusKeys;
+    private static final Color HARDWARE_FILL = new Color(255, 211, 65, 80);
+    private Set<Integer> hardwareHighlights = Set.of();
+    private Map<Integer, Long> lastPressEvents;
+    private final Map<Integer, Long> pulseUntil = new HashMap<>();
+
+    void clearHardwareState() {
+        lastPressEvents = null;
+        pulseUntil.clear();
+        if (!hardwareHighlights.isEmpty()) { hardwareHighlights = Set.of(); repaint(); }
+    }
+
+    void setHardwareState(Set<Integer> pressed, Map<Integer, Long> events, long now) {
+        if (lastPressEvents != null) events.forEach((key, stamp) -> {
+            if (!stamp.equals(lastPressEvents.get(key))) pulseUntil.put(key, now + 180_000_000L);
+        });
+        lastPressEvents = Map.copyOf(events);
+        pulseUntil.values().removeIf(deadline -> now >= deadline);
+        Set<Integer> highlights = new HashSet<>(pressed);
+        highlights.addAll(pulseUntil.keySet());
+        if (!highlights.equals(hardwareHighlights)) {
+            hardwareHighlights = Set.copyOf(highlights);
+            repaint();
+        }
+    }
+
+    boolean hardwareHighlighted(int key) { return hardwareHighlights.contains(key); }
 
     public ImageMap() {
         setPreferredSize(new Dimension(G13_KEYPAD.getIconWidth(), G13_KEYPAD.getIconHeight()));
@@ -153,10 +183,15 @@ public class ImageMap extends JComponent {
                 g.setColor(UiTheme.outline());
                 g.draw(mouseover.getShape());
             }
+            g.setColor(HARDWARE_FILL);
+            for (Key key : Key.getAllMasks()) if (hardwareHighlighted(key.getG13KeyCode())) g.fill(key.getShape());
             paintBindingLabels(g, scale);
             Color outline = UiTheme.outline();
-            g.setColor(new Color(outline.getRed(), outline.getGreen(), outline.getBlue(), 150));
-            for (Key key : Key.getAllMasks()) g.draw(key.getShape());
+            for (Key key : Key.getAllMasks()) {
+                g.setColor(hardwareHighlighted(key.getG13KeyCode()) ? new Color(255, 211, 65, 210)
+                        : new Color(outline.getRed(), outline.getGreen(), outline.getBlue(), 150));
+                g.draw(key.getShape());
+            }
         } finally {
             g.dispose();
         }
@@ -239,6 +274,10 @@ public class ImageMap extends JComponent {
                 // Retain visible selection/hover feedback beneath the high-contrast text.
                 if (key == selected || key == mouseover) {
                     g.setColor(key == selected ? UiTheme.selectedFill() : UiTheme.hoverFill());
+                    g.fill(key.getShape());
+                }
+                if (hardwareHighlighted(key.getG13KeyCode())) {
+                    g.setColor(HARDWARE_FILL);
                     g.fill(key.getShape());
                 }
                 int baseline = area.y + metrics.getAscent();
