@@ -1,74 +1,168 @@
 package com.booker.g13;
 
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
+import javax.imageio.ImageIO;
 
-/** Named profiles do not overwrite the legacy configuration or one another. */
+/** Named profile storage and selection policy shared with the native driver. */
 public final class ProfileStore {
-    public record Profile(String id, String name) {
+    private static final String UUID_PATTERN = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+    private static final String APPLICATION = "[A-Za-z0-9._+ -]{1,128}";
+    public record Profile(String id, String name, Path icon, List<String> applications) {
+        public Profile { applications = List.copyOf(applications); }
         @Override public String toString() { return name; }
     }
-    public static final Profile DEFAULT = new Profile("default", "Default (existing bindings)");
+    public static final Profile DEFAULT = new Profile("default", "Default (existing bindings)", null, List.of());
     private final Path root;
+
     public ProfileStore(Path root) { this.root = root; }
+
     public Path directory(Profile profile) {
         if (profile.id().equals("default")) return root;
-        if (!profile.id().matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"))
-            throw new IllegalArgumentException("Invalid profile identifier");
+        if (!profile.id().matches(UUID_PATTERN)) throw new IllegalArgumentException("Invalid profile identifier");
         return root.resolve("profiles").resolve(profile.id());
     }
+
     public List<Profile> list() throws IOException {
         List<Profile> result = new ArrayList<>();
-        result.add(DEFAULT);
+        result.add(readProfile("default", root, DEFAULT.name()));
         Path profiles = root.resolve("profiles");
         if (Files.isDirectory(profiles)) try (var entries = Files.list(profiles)) {
-            for (Path entry : entries.sorted().toList()) {
+            for (Path entry : entries.toList()) {
                 String id = entry.getFileName().toString();
-                if (!id.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) continue;
-                Path metadata = entry.resolve("profile.properties");
-                if (Files.isRegularFile(metadata) && complete(entry)) {
-                    Properties p = new Properties();
-                    try (var in = Files.newInputStream(metadata)) { p.load(in); }
-                    result.add(new Profile(id, p.getProperty("name", id)));
-                }
+                if (id.matches(UUID_PATTERN) && complete(entry) && Files.isRegularFile(entry.resolve("profile.properties")))
+                    result.add(readProfile(id, entry, id));
             }
         }
+        result.subList(1, result.size()).sort(Comparator.comparing(Profile::name, String.CASE_INSENSITIVE_ORDER));
+        return List.copyOf(result);
+    }
+
+    private Profile readProfile(String id, Path directory, String fallbackName) throws IOException {
+        Properties metadata = readMetadata(directory);
+        List<String> applications = new ArrayList<>();
+        for (int i = 0; ; i++) {
+            String value = metadata.getProperty("application." + i);
+            if (value == null) break;
+            if (value.matches(APPLICATION)) applications.add(value);
+        }
+        Path icon = directory.resolve("profile-icon.png");
+        return new Profile(id, metadata.getProperty("name", fallbackName),
+                Files.isRegularFile(icon) ? icon : null, applications);
+    }
+
+    private static Properties readMetadata(Path directory) throws IOException {
+        Properties result = new Properties();
+        Path metadata = directory.resolve("profile.properties");
+        if (Files.isRegularFile(metadata)) try (var in = Files.newInputStream(metadata)) { result.load(in); }
         return result;
     }
+
     private static boolean complete(Path directory) {
         for (int i = 0; i < 4; i++)
             if (!Files.isRegularFile(directory.resolve("bindings-" + i + ".properties"))) return false;
         return true;
     }
-    public Profile active() throws IOException {
-        Path marker = root.resolve("active-profile");
-        if (!Files.exists(marker)) return DEFAULT;
-        String id = Files.readString(marker).strip();
-        return list().stream().filter(p -> p.id().equals(id)).findFirst().orElse(DEFAULT);
+
+    public Profile find(String id) throws IOException {
+        return list().stream().filter(profile -> profile.id().equals(id)).findFirst().orElse(DEFAULT);
     }
-    public void activate(Profile profile) throws IOException {
-        Path dir = directory(profile);
-        for (int i = 0; i < 4; i++) if (!Files.isRegularFile(dir.resolve("bindings-" + i + ".properties")))
-            throw new IOException("Profile is incomplete: missing bank " + (i + 1));
+
+    private Optional<Profile> exact(String id) throws IOException {
+        return list().stream().filter(profile -> profile.id().equals(id)).findFirst();
+    }
+
+    public Profile defaultProfile() throws IOException {
+        return exact(readMarker("default-profile")).orElse(DEFAULT);
+    }
+    public Optional<Profile> persistentProfile() throws IOException {
+        String id = readMarker("persistent-profile");
+        return id.isBlank() ? Optional.empty() : exact(id);
+    }
+
+    private String readMarker(String name) throws IOException {
+        Path marker = root.resolve(name);
+        if (!Files.isRegularFile(marker)) return name.equals("default-profile") ? "default" : "";
+        String id = Files.readString(marker).strip();
+        return id.equals("default") || id.matches(UUID_PATTERN) ? id : name.equals("default-profile") ? "default" : "";
+    }
+
+    public void setDefault(Profile profile) throws IOException { writeMarker("default-profile", profile.id()); }
+    public void setPersistent(Profile profile) throws IOException { writeMarker("persistent-profile", profile.id()); }
+    public void clearPersistent() throws IOException { Files.deleteIfExists(root.resolve("persistent-profile")); }
+
+    private void writeMarker(String name, String value) throws IOException {
+        if (exact(value).isEmpty()) throw new IOException("Profile is incomplete or missing.");
         Files.createDirectories(root);
-        Path temp = Files.createTempFile(root, ".active-", ".tmp");
+        Path temp = Files.createTempFile(root, ".selection-", ".tmp");
         try {
-            Files.writeString(temp, profile.id() + "\n");
-            Files.move(temp, root.resolve("active-profile"), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            Files.writeString(temp, value + "\n");
+            moveAtomically(temp, root.resolve(name));
         } finally { Files.deleteIfExists(temp); }
     }
+
+    public Profile update(Profile profile, String application, Path iconSource) throws IOException {
+        application = normalizeApplication(application);
+        Path directory = directory(profile);
+        Properties metadata = readMetadata(directory);
+        metadata.setProperty("name", profile.name());
+        metadata.stringPropertyNames().stream().filter(key -> key.startsWith("application."))
+                .toList().forEach(metadata::remove);
+        if (!application.isBlank()) metadata.setProperty("application.0", application);
+        writeMetadata(directory, metadata);
+        if (iconSource != null) writeIcon(directory.resolve("profile-icon.png"), iconSource);
+        return find(profile.id());
+    }
+
+    static String normalizeApplication(String value) {
+        value = value == null ? "" : value.strip().replace('\\', '/');
+        int slash = value.lastIndexOf('/');
+        if (slash >= 0) value = value.substring(slash + 1);
+        if (!value.isEmpty() && !value.matches(APPLICATION))
+            throw new IllegalArgumentException("Application must be an executable name using letters, numbers, spaces, dot, underscore, plus, or hyphen.");
+        return value;
+    }
+
+    private static void writeIcon(Path destination, Path source) throws IOException {
+        if (!Files.isRegularFile(source) || Files.size(source) > 10 * 1024 * 1024)
+            throw new IOException("Choose an image smaller than 10 MiB.");
+        BufferedImage input = ImageIO.read(source.toFile());
+        if (input == null || input.getWidth() < 1 || input.getHeight() < 1
+                || (long) input.getWidth() * input.getHeight() > 16_000_000L)
+            throw new IOException("The selected file is not a supported image or is too large.");
+        int side = 128;
+        double scale = Math.min((double) side / input.getWidth(), (double) side / input.getHeight());
+        int width = Math.max(1, (int) Math.round(input.getWidth() * scale));
+        int height = Math.max(1, (int) Math.round(input.getHeight() * scale));
+        BufferedImage output = new BufferedImage(side, side, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = output.createGraphics();
+        graphics.setComposite(AlphaComposite.Src);
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        graphics.drawImage(input, (side - width) / 2, (side - height) / 2, width, height, null);
+        graphics.dispose();
+        Files.createDirectories(destination.getParent());
+        Path temp = Files.createTempFile(destination.getParent(), ".icon-", ".png");
+        try {
+            if (!ImageIO.write(output, "png", temp.toFile())) throw new IOException("PNG support is unavailable.");
+            moveAtomically(temp, destination);
+        } finally { Files.deleteIfExists(temp); }
+    }
+
     public Profile save(LogitechProfileImporter.Result result) throws IOException {
         String name = result.name();
         Set<String> names = new HashSet<>();
-        for (Profile p : list()) names.add(p.name());
+        for (Profile profile : list()) names.add(profile.name());
         for (int i = 2; names.contains(name); i++) name = result.name() + " (" + i + ")";
-        Profile profile = new Profile(UUID.randomUUID().toString(), name);
+        Profile profile = new Profile(UUID.randomUUID().toString(), name, null, List.of());
         Files.createDirectories(root.resolve("profiles"));
         Path pending = Files.createTempDirectory(root.resolve("profiles"), ".import-");
         try {
             for (int i = 0; i < 4; i++) write(pending.resolve("bindings-" + i + ".properties"), result.banks()[i]);
-            // Explicit empty slots prevent legacy default macros being injected into imports.
             for (int i = 0; i < 200; i++) {
                 Properties macro = i < result.macros().size() ? result.macros().get(i) : new Properties();
                 write(pending.resolve("macro-" + i + ".properties"), macro);
@@ -80,14 +174,29 @@ public final class ProfileStore {
             for (int i = 0; i < result.warnings().size(); i++) metadata.setProperty("import.warning." + i, result.warnings().get(i));
             write(pending.resolve("profile.properties"), metadata);
             Files.move(pending, directory(profile), StandardCopyOption.ATOMIC_MOVE);
-            return profile;
+            return find(profile.id());
         } finally {
             if (Files.exists(pending)) try (var files = Files.walk(pending)) {
                 for (Path file : files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(file);
             }
         }
     }
-    static void write(Path path, Properties props) throws IOException {
-        try (var out = Files.newOutputStream(path)) { props.store(out, "G13 profile"); }
+
+    private static void writeMetadata(Path directory, Properties metadata) throws IOException {
+        Files.createDirectories(directory);
+        Path temp = Files.createTempFile(directory, ".profile-", ".tmp");
+        try {
+            write(temp, metadata);
+            moveAtomically(temp, directory.resolve("profile.properties"));
+        } finally { Files.deleteIfExists(temp); }
+    }
+
+    private static void moveAtomically(Path source, Path destination) throws IOException {
+        try { Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
+        catch (AtomicMoveNotSupportedException e) { Files.move(source, destination, StandardCopyOption.REPLACE_EXISTING); }
+    }
+
+    static void write(Path path, Properties properties) throws IOException {
+        try (var out = Files.newOutputStream(path)) { properties.store(out, "G13 profile"); }
     }
 }

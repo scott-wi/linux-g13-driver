@@ -49,6 +49,11 @@ make install-user    # Install the built release for this user
 # OR: sudo make install  # Install it system-wide
 ```
 
+For quick testing of the current checkout on a system-wide managed installation,
+run `./local-make.sh` as your desktop user. It builds the driver and Java GUI,
+installs the local release through `sudo`, refreshes device access, and restarts
+the user service. Close and reopen the configuration window afterward.
+
 To enable or restart the user service as part of user deployment, use
 `make install-user DEPLOY_FLAGS=--activate`.
 
@@ -163,4 +168,4 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 
 ### Windows profile import
 
-The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Select **Import Windows profile…**, review the conversion warnings, then choose **Use profile** to activate it. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.
+The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Profiles appear with their icons in a list on the left. Add a Linux executable name for automatic selection, designate one fallback profile as Default, or mark one Persistent to suspend automatic changes. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.

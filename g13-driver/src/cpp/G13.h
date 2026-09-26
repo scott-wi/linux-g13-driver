@@ -33,6 +33,7 @@ private:
     // Feature: Live-Reload
     time_t last_config_mtime;
     long last_config_nsec = 0;
+    time_t last_profile_scan = 0;
     std::string profile_directory;
     void check_for_config_update();
 

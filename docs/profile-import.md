@@ -6,9 +6,10 @@ Build and deploy both the driver and GUI from this version. Older installed driv
 2. Select one Logitech Gaming Software `.xml` export.
 3. Review the assignment count and warnings. Cancel makes no configuration changes.
 4. Import saves a separate named profile and opens it for editing. Duplicate names receive a suffix; previous profiles are preserved.
-5. Choose **Use profile** to select it for the running updated driver. It starts at bank 0. Choose **Default (existing bindings)** and **Use profile** to return to your previous setup.
+5. Optionally choose an icon, then enter the Linux executable name used to match the profile. A full path is reduced to its executable basename.
+6. Use **Set as default** for the fallback when no configured application is running. Enable **Persistent profile** to keep one profile selected regardless of running applications; disable it to resume automatic selection.
 
-Editing the currently active profile still live-updates its binding file. Selecting a different profile for editing alone does not activate it. Stop macro recording before changing the editing profile. The selected-for-driver label reflects saved selection; it does not confirm that the service is running or the device accepted it.
+Selecting a profile in the left list changes which profile is being edited; it does not change the driver's selection rule. Stop macro recording before changing the editing profile. The driver re-evaluates rules once per second and resets to bank 0 when the selected profile changes.
 
 ## Conversion
 
@@ -29,9 +30,11 @@ Only one profile per XML is accepted. Malformed XML, non-Logitech documents, amb
 
 ## Storage and testing
 
-Profiles live in `$XDG_CONFIG_HOME/g13/profiles/<UUID>/` (normally `~/.config/g13/profiles/`). Each has four binding files, its own macro collection, and `profile.properties` with its name, source GUID, Windows paths, and conversion warnings. The root-level legacy files remain intact. The driver reads `active-profile` to select a profile.
+Profiles live in `$XDG_CONFIG_HOME/g13/profiles/<UUID>/` (normally `~/.config/g13/profiles/`). Each has four binding files, its own macro collection, `profile.properties`, and an optional normalized 128-pixel `profile-icon.png`. The root-level legacy files remain intact. `default-profile` and `persistent-profile` contain stable IDs and are replaced atomically.
 
-`make test` uses temporary configuration, mocked USB/uinput, and headless Swing. It covers XML security, mapping, backups, warnings, duplicate imports, activation, legacy preservation, held chords, macro cancellation, clearing stale bindings, and live profile changes. No new runtime or test dependencies are introduced.
+The driver resolves selection in this order: persistent profile; first alphabetically named profile whose configured executable is running; designated default; legacy Default. It examines `/proc/<pid>/exe` and command-line basenames, which covers native programs and many Wine/Proton launches. Matching is exact and case-sensitive. This is running-process detection, not foreground-window detection. If several configured applications run together, alphabetical profile order is deterministic.
+
+`make test` uses temporary configuration, a synthetic `/proc`, mocked USB/uinput, and headless Swing. It covers XML security, mapping, backups, warnings, duplicate imports, icon normalization, default/persistent rules, running-app selection, legacy preservation, held chords, macro cancellation, clearing stale bindings, and live profile changes. No new runtime dependency is introduced.
 
 To additionally validate local exports without importing into your actual configuration:
 
@@ -39,4 +42,4 @@ To additionally validate local exports without importing into your actual config
 bash g13-driver/src/tests/test_profiles.sh "$PWD/example-profiles"
 ```
 
-The supplied folder currently yields 44 convertible G13 profiles, five malformed files, and two profiles for other devices. These are parser/conversion checks, not hardware validation. Personal example exports are not added to this change. Folder import and foreground-application selection remain future work; the converter and storage APIs are independent of the file chooser for that purpose.
+The supplied folder currently yields 44 convertible G13 profiles, five malformed files, and two profiles for other devices. These are parser/conversion checks, not hardware validation. Personal example exports are not added to this change. Folder import and true foreground-window selection remain future work; the converter and storage APIs are independent of the file chooser for that purpose.

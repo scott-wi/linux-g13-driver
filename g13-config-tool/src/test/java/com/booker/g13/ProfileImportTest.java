@@ -64,19 +64,26 @@ public class ProfileImportTest {
         var duplicate = store.save(result);
         check(!saved.id().equals(duplicate.id()) && duplicate.name().equals("Test game (2)"), "duplicate overwrote profile");
         check(Arrays.equals(previous, Files.readAllBytes(legacy)), "legacy configuration overwritten");
-        check(store.active().equals(ProfileStore.DEFAULT), "import activated implicitly");
-        store.activate(saved);
-        check(store.active().equals(saved), "activation round trip");
+        check(store.defaultProfile().id().equals("default"), "import changed default implicitly");
+        check(store.persistentProfile().isEmpty(), "import enabled persistence implicitly");
+        store.setDefault(saved);
+        check(store.defaultProfile().id().equals(saved.id()), "default selection round trip");
+        store.setPersistent(saved);
+        check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent selection round trip");
         Properties metadata = new Properties();
         try (var in = Files.newInputStream(store.directory(saved).resolve("profile.properties"))) { metadata.load(in); }
         check("C:\\Games\\game.exe".equals(metadata.getProperty("windows.target.0")), "lost Windows reference");
-        try { store.directory(new ProfileStore.Profile("../escape", "bad")); throw new AssertionError("path traversal"); }
+        try { store.directory(new ProfileStore.Profile("../escape", "bad", null, List.of())); throw new AssertionError("path traversal"); }
         catch (IllegalArgumentException expected) { }
         Files.delete(store.directory(duplicate).resolve("bindings-2.properties"));
-        try { store.activate(duplicate); throw new AssertionError("incomplete profile activated"); } catch (IOException expected) { }
-        check(store.active().equals(saved), "failed activation changed marker");
+        try { store.setPersistent(duplicate); throw new AssertionError("incomplete profile persisted"); } catch (IOException expected) { }
+        check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "failed persistence changed marker");
         Files.delete(store.directory(saved).resolve("bindings-3.properties"));
-        check(store.active().equals(ProfileStore.DEFAULT), "incomplete selection must match driver fallback");
+        check(store.persistentProfile().isEmpty(), "incomplete persistent profile did not fall back");
+        check(store.defaultProfile().id().equals("default"), "incomplete default did not fall back");
+        check("game.exe".equals(ProfileStore.normalizeApplication("C:\\Games\\game.exe")), "application basename normalization");
+        try { ProfileStore.normalizeApplication("bad;command"); throw new AssertionError("unsafe application accepted"); }
+        catch (IllegalArgumentException expected) { }
         System.out.println("Profile import, security, mapping and storage tests passed.");
         if (args.length > 1) {
             int imported = 0, rejected = 0;
