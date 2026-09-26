@@ -156,6 +156,48 @@ public class ProfileGuiTest {
         for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
     }
 
+    static void previewClick(Component target, Point point, int count, int button) {
+        target.dispatchEvent(new java.awt.event.MouseEvent(target, java.awt.event.MouseEvent.MOUSE_CLICKED,
+                System.currentTimeMillis(), 0, point.x, point.y, count, false, button));
+    }
+
+    static void checkPreviewDoubleClick(G13 gui) {
+        gui.setSize(1920, 1080);
+        layout(gui);
+        ImageMap map = find(gui, ImageMap.class);
+        ProfileSidebar profiles = find(gui, ProfileSidebar.class);
+        KeybindPanel bindings = find(gui, KeybindPanel.class);
+        Container editor = bindings.getParent();
+        toggle(gui, "Theatre").doClick();
+        layout(gui);
+        Point blank = new Point(2, map.getHeight() / 2);
+        previewClick(map, blank, 1, java.awt.event.MouseEvent.BUTTON1);
+        previewClick(map, blank, 2, java.awt.event.MouseEvent.BUTTON3);
+        ProfileImportTest.check(!editor.isVisible(), "single/right click opened the editor");
+        previewClick(map, blank, 2, java.awt.event.MouseEvent.BUTTON1);
+        layout(gui);
+        ProfileImportTest.check(editor.isVisible() && !profiles.isVisible()
+                && editor.getWidth() == editor.getMinimumSize().width, "blank preview double-click did not open only the editor");
+        toggle(gui, "Editor").doClick();
+        layout(gui);
+        previewClick(map, map.imagePointToComponent(80, 203), 2, java.awt.event.MouseEvent.BUTTON1);
+        layout(gui);
+        ProfileImportTest.check(editor.isVisible() && checkbox(bindings, "Switch layout").isEnabled(),
+                "key double-click did not select a key and open its editor");
+        JSplitPane split = (JSplitPane) editor.getParent();
+        split.setDividerLocation(split.getWidth() - 470 - split.getDividerSize());
+        layout(gui);
+        previewClick(map, blank, 2, java.awt.event.MouseEvent.BUTTON1);
+        layout(gui);
+        ProfileImportTest.check(editor.getWidth() == 470, "double-click resized an already open editor");
+        toggle(gui, "Editor").doClick();
+        layout(gui);
+        previewClick(map.getParent(), new Point(2, 2), 2, java.awt.event.MouseEvent.BUTTON1);
+        layout(gui);
+        ProfileImportTest.check(editor.isVisible(), "preview border double-click did not open the editor");
+        toggle(gui, "Profiles").doClick();
+    }
+
     static void checkTheatre(G13 gui, Path output) throws Exception {
         ImageMap map = find(gui, ImageMap.class);
         ProfileSidebar profiles = find(gui, ProfileSidebar.class);
@@ -377,6 +419,7 @@ public class ProfileGuiTest {
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
+                checkPreviewDoubleClick(gui);
                 checkSidebarResize(gui);
                 checkTheatre(gui, Path.of(args[0]).resolveSibling("g13-theatre-dark.png"));
                 UiTheme.apply(false);

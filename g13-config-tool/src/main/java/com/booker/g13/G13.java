@@ -149,6 +149,12 @@ public class G13 extends JPanel {
         p.add(toolbar, BorderLayout.NORTH);
 		p.add(g13Label, BorderLayout.CENTER);
         p.setMinimumSize(new Dimension(Math.max(330, p.getLayout().minimumLayoutSize(p).width), 300));
+        installPreviewDoubleClick(p, new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (SwingUtilities.isLeftMouseButton(event) && event.getClickCount() == 2)
+                    setSidebarVisibility(profileSidebar.isVisible(), true);
+            }
+        });
 		
 		editorSidebar.setPreferredSize(new Dimension(390, 720));
 		editorSidebar.add(keybindPanel, BorderLayout.NORTH);
@@ -165,6 +171,14 @@ public class G13 extends JPanel {
 		macroEditorPanel.setMacros(macros);
 		profileSidebar.refresh(editingProfile);
 	}
+
+    private static void installPreviewDoubleClick(java.awt.Component surface, java.awt.event.MouseAdapter listener) {
+        // Include blank preview/toolbar space and labels; leave actual controls to their own actions.
+        if (!(surface instanceof JPanel || surface instanceof JLabel || surface instanceof ImageMap)) return;
+        surface.addMouseListener(listener);
+        if (surface instanceof JPanel panel)
+            for (java.awt.Component child : panel.getComponents()) installPreviewDoubleClick(child, listener);
+    }
 
     private static void setUsableSidebarSize(JPanel sidebar) {
         int width = Math.max(sidebar.getPreferredSize().width,
