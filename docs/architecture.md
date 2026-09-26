@@ -26,7 +26,7 @@ The thumbstick currently defaults to four directional key actions (internal indi
 
 ## Named profiles and configuration
 
-Both apps use `$XDG_CONFIG_HOME/g13`, falling back to `~/.config/g13`. Existing root-level configuration remains the Default profile. Each imported game has an independent `profiles/<UUID>/` directory with four binding banks, 200 macro slots, and `profile.properties` metadata. An atomically replaced `active-profile` file selects the profile for the driver. Invalid or incomplete selections fall back to Default.
+Both apps use `$XDG_CONFIG_HOME/g13`, falling back to `~/.config/g13`. Existing root-level configuration remains the legacy Default profile. Each imported game has an independent `profiles/<UUID>/` directory with four binding banks, 200 macro slots, `profile.properties` metadata, and an optional normalized PNG icon.
 
 - `bindings-0.properties` through `bindings-3.properties` hold the banks. Physical M1–MR select these banks; their USB indices are 29–32 (corrected from the previous LCD-button indices 25–28). Selecting a bank in the GUI only changes the bank being edited.
 - `macro-0.properties` through `macro-199.properties` belong to that profile. Driver and GUI legacy defaults still differ; imports explicitly write all banks and macro slots.
@@ -35,13 +35,13 @@ Both apps use `$XDG_CONFIG_HOME/g13`, falling back to `~/.config/g13`. Existing 
 
 `LogitechProfileImporter` uses the JDK XML parser to produce a conversion result without writing files. `ProfileStore` stages a complete named profile before atomically exposing it; stable IDs and separation from Swing allow later folder import to reuse these operations. See [Importing Windows profiles](profile-import.md) for supported actions and limits.
 
-The GUI distinguishes editing selection from **Use profile**. That button writes the activation marker; the driver polls it, resets to bank 0 on profile changes, and snapshots the selected directory for loading its bank and macros. Reloading clears old assignments, releases passthrough/chord keys, and cancels running macros with balanced key releases. Delay cancellation is checked every 5 ms. Binding reload checks include nanosecond timestamps. The GUI displays the profile selected for the driver, not a hardware acknowledgement.
+The GUI presents profiles in a vertical icon list. List selection chooses the profile being edited. Each profile can store a Linux executable basename; one profile can be the default fallback and one can be persistent. The driver resolves persistent, running-application, default, then legacy fallback rules once per second using `/proc`, resets to bank 0 on selection changes, and snapshots one directory for loading its bank and macros. Reloading clears old assignments, releases passthrough/chord keys, and cancels running macros with balanced key releases. Delay cancellation is checked every 5 ms. Binding reload checks include nanosecond timestamps.
 
-Macro-file edits alone still do not trigger reload; switch banks or activate another profile and back to reload them. LCD text uses `$XDG_RUNTIME_DIR/g13-lcd`, falling back to `/tmp/g13-lcd`; that pipe accepts text, not profile commands. `g13-driver/src/scripts/g13_monitor.py` is an example LCD producer.
+Macro-file edits alone still do not trigger reload; switch banks or let the selection rule change profiles and back to reload them. LCD text uses `$XDG_RUNTIME_DIR/g13-lcd`, falling back to `/tmp/g13-lcd`; that pipe accepts text, not profile commands. `g13-driver/src/scripts/g13_monitor.py` is an example LCD producer.
 
 ## Planned direction
 
-Folder import, application-matching rules, foreground-app detection, and driver activation acknowledgements are not implemented. Windows executable paths remain reference metadata. Establish the target desktop/session before choosing a foreground-detection backend and defining manual override behavior. Further graphical UI changes remain to be specified.
+Folder import, true foreground-window detection, and driver activation acknowledgements are not implemented. Windows executable paths remain reference metadata. Running-process matching is desktop/session independent; foreground detection would need a separately designed desktop backend. Further graphical UI changes remain to be specified.
 
 ## Build and development
 

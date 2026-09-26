@@ -163,4 +163,4 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 
 ### Windows profile import
 
-The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Select **Import Windows profile…**, review the conversion warnings, then choose **Use profile** to activate it. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.
+The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Profiles appear with their icons in a list on the left. Add a Linux executable name for automatic selection, designate one fallback profile as Default, or mark one Persistent to suspend automatic changes. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.

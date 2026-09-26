@@ -34,18 +34,56 @@ int main(int argc, char** argv) {
     assert(argc == 2);
     setenv("XDG_CONFIG_HOME", argv[1], 1);
     std::string root = std::string(argv[1]) + "/g13";
+    std::string proc = std::string(argv[1]) + "/proc";
+    setenv("G13_PROC_ROOT", proc.c_str(), 1);
     std::filesystem::create_directories(root);
-    assert(ConfigPath::getActiveProfileDir() == root);
-    std::ofstream(root + "/active-profile") << "../escape\n";
+    std::filesystem::create_directories(proc);
     assert(ConfigPath::getActiveProfileDir() == root);
     std::string id = "12345678-1234-1234-1234-123456789abc";
     std::string dir = root + "/profiles/" + id;
     std::filesystem::create_directories(dir);
-    std::ofstream(root + "/active-profile") << id << '\n';
-    std::ofstream(dir + "/profile.properties") << "name=Test\n";
+    std::ofstream(dir + "/profile.properties") << "name=Test\napplication.0=example-game\n";
     assert(ConfigPath::getActiveProfileDir() == root); // incomplete imports are never loaded
     for (int i = 0; i < 4; ++i) std::ofstream(dir + "/bindings-" + std::to_string(i) + ".properties") << "color=255,255,255\n";
+    std::ofstream(root + "/default-profile") << id << '\n';
     assert(ConfigPath::getActiveProfileDir() == dir);
+    std::ofstream(root + "/default-profile") << "default\n";
+    assert(ConfigPath::getActiveProfileDir() == root);
+    std::filesystem::create_directories(proc + "/123");
+    {
+        std::ofstream command(proc + "/123/cmdline", std::ios::binary);
+        const std::string value = "/games/example-game";
+        command.write(value.c_str(), value.size() + 1);
+    }
+    assert(ConfigPath::getSelectedProfileId() == id); // running application wins
+    std::string alphabetical_id = "00000000-0000-0000-0000-000000000001";
+    std::string alphabetical_dir = root + "/profiles/" + alphabetical_id;
+    std::filesystem::create_directories(alphabetical_dir);
+    std::ofstream(alphabetical_dir + "/profile.properties") << "name=Aardvark\napplication.0=example-game\n";
+    for (int i = 0; i < 4; ++i)
+        std::ofstream(alphabetical_dir + "/bindings-" + std::to_string(i) + ".properties") << "color=255,255,255\n";
+    assert(ConfigPath::getSelectedProfileId() == alphabetical_id); // deterministic priority when both match
+    std::filesystem::remove_all(proc + "/123");
+    std::ofstream(alphabetical_dir + "/profile.properties") << "name=Aardvark\napplication.0=native-game\n";
+    std::filesystem::create_directories(proc + "/124");
+    std::filesystem::create_symlink("/games/native-game", proc + "/124/exe");
+    assert(ConfigPath::getSelectedProfileId() == alphabetical_id); // native executable link is detected
+    std::filesystem::remove_all(proc + "/124");
+    std::filesystem::remove_all(alphabetical_dir);
+    std::filesystem::create_directories(proc + "/123");
+    {
+        std::ofstream command(proc + "/123/cmdline", std::ios::binary);
+        const std::string value = "/games/example-game";
+        command.write(value.c_str(), value.size() + 1);
+    }
+    std::ofstream(root + "/persistent-profile") << "default\n";
+    assert(ConfigPath::getActiveProfileDir() == root); // persistence overrides a match
+    std::ofstream(root + "/persistent-profile") << id << '\n';
+    assert(ConfigPath::getActiveProfileDir() == dir);
+    std::filesystem::remove(root + "/persistent-profile");
+    std::filesystem::remove_all(proc + "/123");
+    assert(ConfigPath::getActiveProfileDir() == root); // configured default fallback
+    std::ofstream(root + "/persistent-profile") << id << '\n';
     {
         G13 device(nullptr);
         std::ofstream(dir + "/bindings-0.properties") << "G0=p,k.31\n";
@@ -64,7 +102,8 @@ int main(int argc, char** argv) {
         device.actions[0]->set(1);
         assert(!contains(31, 1)); // absent entry must not survive bank change
         std::ofstream(root + "/bindings-0.properties") << "G0=p,k.32\n";
-        std::ofstream(root + "/active-profile") << "default\n";
+        std::ofstream(root + "/persistent-profile") << "default\n";
+        device.last_profile_scan = 0;
         device.check_for_config_update();
         assert(device.bindings == 0 && device.profile_directory == root);
         device.actions[0]->set(1);

@@ -12,6 +12,8 @@
  */
 class ConfigPath {
 public:
+    /** Resolve persistent, running-application, and default profile rules. */
+    static std::string getSelectedProfileId();
     static std::string getActiveProfileDir();
     /**
      * @brief Gets the full path to a specific binding configuration file.

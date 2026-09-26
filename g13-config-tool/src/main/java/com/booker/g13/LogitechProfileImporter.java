@@ -108,7 +108,7 @@ public final class LogitechProfileImporter {
             warnings.add("Lua scripts are not imported or executed."); break;
         }
         warnings.add("Only explicit active G13 assignments are imported. Missing assignments and the fourth bank remain unassigned.");
-        if (!targets.isEmpty()) warnings.add("Windows executable paths are saved for reference; automatic activation is not configured.");
+        if (!targets.isEmpty()) warnings.add("Windows executable paths are saved for reference; add the Linux executable in the profile sidebar.");
         String name = profile.getAttribute("name").strip();
         return new Result(name.isEmpty() ? "Imported profile" : name, profile.getAttribute("guid"),
                 List.copyOf(targets), banks, List.copyOf(macros), List.copyOf(warnings), count);

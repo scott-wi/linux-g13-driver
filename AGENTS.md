@@ -5,7 +5,7 @@
 - Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/fedora-preview-releases`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
 - Fetch and push only the private `scott-wi/linux-g13-driver` origin repository; do not use upstream.
 - The user owns a G13. Building is authorized; installing, restarting the live service, or taking control of the device requires an explicit request for that action.
-- Named profiles and single Logitech XML import are implemented; foreground application matching, folder import, and further graphical UI changes remain planned. See [docs/profile-import.md](docs/profile-import.md).
+- Named profiles, icons, running-application matching, default/persistent selection, and single Logitech XML import are implemented. Folder import and further graphical UI changes remain planned. See [docs/profile-import.md](docs/profile-import.md).
 - Read [docs/architecture.md](docs/architecture.md) for the current behavior and extension points.
 
 ## Build and verification
@@ -31,4 +31,4 @@ Do not commit generated `build/`, `target/`, `.stage/`, or `dist/` artifacts. Re
 - Configuration is a shared C++/Java contract. Update both readers/writers when changing it and preserve existing users' bindings and macros.
 - Internal G-key indices are zero-based, unlike the printed G1–G22 labels. Check `Constants.h` and `Key.java` before changing mappings.
 - Profile transitions need explicit handling of held keys and running macros. Do not assume the current reload code safely resets them.
-- Keep documentation clear about implemented behavior versus proposals. Do not choose a foreground-detection backend before establishing the user's desktop/session requirements.
+- Keep documentation clear about implemented behavior versus proposals. Application matching currently uses running Linux processes through `/proc`; it does not claim foreground-window detection.

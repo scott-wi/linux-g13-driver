@@ -109,11 +109,15 @@ void G13::stop() {
 
 // --- Live-Reload Implementation ---
 void G13::check_for_config_update() {
-    const std::string selected = ConfigPath::getActiveProfileDir();
-    if (selected != profile_directory) {
-        bindings = 0;
-        loadBindings();
-        return;
+    time_t now = time(nullptr);
+    if (now != last_profile_scan) {
+        last_profile_scan = now;
+        const std::string selected = ConfigPath::getActiveProfileDir();
+        if (selected != profile_directory) {
+            bindings = 0;
+            loadBindings();
+            return;
+        }
     }
     std::string filename = profile_directory + "/bindings-" + std::to_string(bindings) + ".properties";
     

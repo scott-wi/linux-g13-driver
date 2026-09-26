@@ -54,10 +54,8 @@ public class G13 extends JPanel {
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
-    private final JComboBox<ProfileStore.Profile> profileSelector = new JComboBox<>();
-    private final JLabel activeProfileLabel = new JLabel();
+    private ProfileSidebar profileSidebar;
     private ProfileStore.Profile editingProfile = ProfileStore.DEFAULT;
-    private boolean refreshingProfiles;
 
     // Data storage
 	private final Properties[] keyBindings = new Properties[4]; // Holds the 4 binding profiles (M1, M2, M3, MR).
@@ -71,7 +69,7 @@ public class G13 extends JPanel {
 		setLayout(new BorderLayout());
 		
 		try {
-            editingProfile = profileStore.active();
+            editingProfile = profileStore.persistentProfile().orElse(profileStore.defaultProfile());
             Configs.selectProfile(profileStore.directory(editingProfile));
         } catch (IOException e) { showProfileError(e); }
         // Load all configurations and initialize the UI.
@@ -104,7 +102,17 @@ public class G13 extends JPanel {
 			}			
 		});
 		
-		add(profileToolbar(), BorderLayout.NORTH);
+        profileSidebar = new ProfileSidebar(profileStore, new ProfileSidebar.Listener() {
+            @Override public void selected(ProfileStore.Profile profile) {
+                if (macroEditorPanel.isRecording()) {
+                    JOptionPane.showMessageDialog(G13.this, "Stop macro recording before switching profiles.");
+                    profileSidebar.refresh(editingProfile);
+                } else selectProfile(profile);
+            }
+            @Override public void importRequested() { importProfile(); }
+            @Override public void error(Exception error) { showProfileError(error); }
+        });
+		add(profileSidebar, BorderLayout.WEST);
         // --- UI Assembly ---
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(BorderFactory.createTitledBorder("G13 Keypad"));
@@ -119,56 +127,15 @@ public class G13 extends JPanel {
 		// Provide the macro data to the panels that need it.
 		keybindPanel.setMacros(macros);
 		macroEditorPanel.setMacros(macros);
+		profileSidebar.refresh(editingProfile);
 	}
-
-    private JPanel profileToolbar() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JPanel controls = new JPanel();
-        profileSelector.setPreferredSize(new java.awt.Dimension(230, 28));
-        controls.add(new JLabel("Editing profile:"));
-        controls.add(profileSelector);
-        JButton importButton = new JButton("Import Windows profile…");
-        JButton useButton = new JButton("Use profile");
-        controls.add(importButton);
-        controls.add(useButton);
-        panel.add(controls, BorderLayout.CENTER);
-        panel.add(activeProfileLabel, BorderLayout.SOUTH);
-        refreshProfiles();
-        profileSelector.addActionListener(e -> {
-            if (refreshingProfiles) return;
-            if (macroEditorPanel.isRecording()) {
-                JOptionPane.showMessageDialog(this, "Stop macro recording before switching profiles.");
-                refreshProfiles();
-                return;
-            }
-            var selected = (ProfileStore.Profile) profileSelector.getSelectedItem();
-            if (selected != null) selectProfile(selected);
-        });
-        importButton.addActionListener(e -> importProfile());
-        useButton.addActionListener(e -> {
-            try { profileStore.activate(editingProfile); refreshProfiles(); }
-            catch (IOException ex) { showProfileError(ex); }
-        });
-        return panel;
-    }
-
-    private void refreshProfiles() {
-        refreshingProfiles = true;
-        try {
-            profileSelector.removeAllItems();
-            for (var profile : profileStore.list()) profileSelector.addItem(profile);
-            profileSelector.setSelectedItem(editingProfile);
-            activeProfileLabel.setText("Selected for driver: " + profileStore.active().name());
-        } catch (IOException e) { showProfileError(e); }
-        finally { refreshingProfiles = false; }
-    }
 
     private void selectProfile(ProfileStore.Profile profile) {
         var previous = editingProfile;
         Configs.selectProfile(profileStore.directory(profile));
         if (!loadConfiguration()) {
             Configs.selectProfile(profileStore.directory(previous));
-            refreshProfiles();
+            if (profileSidebar != null) profileSidebar.refresh(previous);
             return;
         }
         editingProfile = profile;
@@ -192,7 +159,7 @@ public class G13 extends JPanel {
             String summary = result.name() + "\n" + result.importedAssignments()
                     + " assignments across M1–M3; " + result.macros().size() + " key macros.\n\n"
                     + String.join("\n", result.warnings())
-                    + "\n\nImport as a separate profile? Select Use profile when ready to activate it.";
+                    + "\n\nImport as a separate profile? Add a Linux executable afterward for automatic selection.";
             JTextArea preview = new JTextArea(summary, 18, 65);
             preview.setEditable(false);
             preview.setLineWrap(true);
@@ -200,8 +167,9 @@ public class G13 extends JPanel {
             preview.setCaretPosition(0);
             if (JOptionPane.showConfirmDialog(this, new JScrollPane(preview), "Review import",
                     JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
-            selectProfile(profileStore.save(result));
-            refreshProfiles();
+            ProfileStore.Profile imported = profileStore.save(result);
+            selectProfile(imported);
+            profileSidebar.refresh(imported);
         } catch (IOException e) { showProfileError(e); }
     }
 

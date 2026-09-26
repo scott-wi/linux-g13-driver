@@ -36,11 +36,24 @@ public class ProfileGuiTest {
                 var store = new ProfileStore(Configs.getRootDir());
                 var saved = store.save(new LogitechProfileImporter.Result("Example game", "synthetic", java.util.List.of(), banks,
                     java.util.List.of(), java.util.List.of(), 1));
+                BufferedImage sourceIcon = new BufferedImage(300, 100, BufferedImage.TYPE_INT_RGB);
+                Graphics2D sourceGraphics = sourceIcon.createGraphics();
+                sourceGraphics.setColor(Color.MAGENTA);
+                sourceGraphics.fillRect(0, 0, 300, 100);
+                sourceGraphics.dispose();
+                Path iconSource = Path.of(args[0]).resolveSibling("source-icon.png");
+                ImageIO.write(sourceIcon, "png", iconSource.toFile());
+                saved = store.update(saved, "/games/example-game", iconSource);
+                ProfileImportTest.check(saved.icon() != null && ImageIO.read(saved.icon().toFile()).getWidth() == 128,
+                        "icon was not normalized into profile storage");
                 G13 gui = new G13();
-                JComboBox<?> selector = find(gui, JComboBox.class);
-                selector.setSelectedItem(saved);
+                ProfileSidebar sidebar = find(gui, ProfileSidebar.class);
+                JList<?> selector = find(sidebar, JList.class);
+                selector.setSelectedValue(saved, true);
                 ProfileImportTest.check(Configs.getConfigDir().equals(store.directory(saved)), "selection did not change editor storage");
-                ProfileImportTest.check(store.active().equals(ProfileStore.DEFAULT), "editing selection activated driver");
+                ProfileImportTest.check(store.defaultProfile().id().equals("default"), "editing selection changed default");
+                ProfileImportTest.check(store.persistentProfile().isEmpty(), "editing selection enabled persistence");
+                ProfileImportTest.check(saved.applications().equals(java.util.List.of("example-game")), "application basename was not saved");
                 MacroEditorPanel editor = find(gui, MacroEditorPanel.class);
                 JComboBox<?> macroSelector = find(editor, JComboBox.class);
                 ProfileImportTest.check(macroSelector.isEnabled(), "imported macros cannot be selected");
@@ -52,11 +65,14 @@ public class ProfileGuiTest {
                 KeybindPanel bindings = find(gui, KeybindPanel.class);
                 bindings.setSelectedKey(Key.getKeyFor(0));
                 ProfileImportTest.check("c,42,17".equals(Configs.loadBindings(0).getProperty("G0")), "viewing chord changed binding");
-                button(gui, "Use profile").doClick();
-                ProfileImportTest.check(store.active().equals(saved), "Use profile failed");
-                selector.setSelectedItem(ProfileStore.DEFAULT);
+                button(sidebar, "Set as default").doClick();
+                ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
+                JCheckBox persistence = find(sidebar, JCheckBox.class);
+                persistence.doClick();
+                ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
+                selector.setSelectedValue(store.find("default"), true);
                 ProfileImportTest.check(Arrays.equals(legacy, Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"))), "switching damaged legacy bindings");
-                selector.setSelectedItem(saved);
+                selector.setSelectedValue(saved, true);
                 bindings.setSelectedKey(Key.getKeyFor(0));
                 gui.setSize(gui.getPreferredSize());
                 layout(gui);
