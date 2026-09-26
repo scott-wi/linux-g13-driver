@@ -29,7 +29,7 @@ public class MacroEditorPanel extends JPanel {
 	private static final ImageIcon DELAY_ICON = ImageIconHelper.loadEmbeddedImage("/com/booker/g13/images/pause.png", 16, 16);
 
 	// --- UI Components ---
-	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
+	private final JComboBox<Properties> macroSelectionBox = new ClickComboBox<>();
 	private final DefaultListModel<String> listModel = new DefaultListModel<>();
 	private final JList<String> macroList = new JList<>(listModel);
 	private final JTextField nameText = new JTextField();
@@ -424,6 +424,7 @@ public class MacroEditorPanel extends JPanel {
 			macro.setProperty("characterDelay", Integer.toString(delay));
 			macro.setProperty("sequence", TextMacroCodec.sequence(textEditor.getText(), delay));
 			Configs.saveMacro(id, macro);
+            firePropertyChange("macroSaved", false, true);
 			nameText.setForeground(UIManager.getColor("TextField.foreground"));
 			macroSelectionBox.repaint();
 		} catch (Exception error) { showSaveError(error); }
@@ -453,6 +454,7 @@ public class MacroEditorPanel extends JPanel {
 		// Persist the changes.
 		try {
 			Configs.saveMacro(id, macro);
+            firePropertyChange("macroSaved", false, true);
 		} catch (Exception e) {
 			showSaveError(e);
 		}

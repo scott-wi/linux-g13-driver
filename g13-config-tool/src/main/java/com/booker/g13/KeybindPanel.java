@@ -39,7 +39,7 @@ public class KeybindPanel extends JPanel {
 	
 	// --- UI Components for Macro Binding ---
 	private final JCheckBox macroButton = new JCheckBox("Macro");
-	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
+	private final JComboBox<Properties> macroSelectionBox = new ClickComboBox<>();
 	private final JCheckBox repeatsCheckBox = new JCheckBox("Auto repeat");
 	private final JCheckBox bankButton = new JCheckBox("Switch layout");
 	private final JComboBox<String> bankSelectionBox = new JComboBox<>(new String[]{"M1", "M2", "M3"});
@@ -310,6 +310,7 @@ public class KeybindPanel extends JPanel {
 		
 		try {
 			Configs.saveBindings(bindingsId, bindings);
+            firePropertyChange("bindingsSaved", false, true);
 		} catch (IOException e) {
 			e.printStackTrace();
 			JOptionPane.showMessageDialog(this, "Could not save color setting: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -345,7 +346,10 @@ public class KeybindPanel extends JPanel {
 	private void saveJoystickMode() {
 		if (loadingData || bindings == null || bindingsId < 0) return;
 		bindings.setProperty("stick", joystickMode.getSelectedIndex() == 1 ? "absolute" : "keys");
-		try { Configs.saveBindings(bindingsId, bindings); }
+		try {
+            Configs.saveBindings(bindingsId, bindings);
+            firePropertyChange("bindingsSaved", false, true);
+        }
 		catch (IOException error) {
 			JOptionPane.showMessageDialog(this, "Could not save joystick mode: " + error.getMessage(),
 					"Error", JOptionPane.ERROR_MESSAGE);
@@ -398,6 +402,7 @@ public class KeybindPanel extends JPanel {
 		// Persist the changes to the properties file.
 		try {
 			Configs.saveBindings(bindingsId, bindings);
+            firePropertyChange("bindingsSaved", false, true);
 		} catch (IOException e) {
 			e.printStackTrace();
 			JOptionPane.showMessageDialog(this, "Can't Save Bindings: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);

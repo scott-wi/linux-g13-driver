@@ -37,6 +37,12 @@ private:
     long last_config_nsec = 0;
     time_t last_profile_scan = 0;
     std::string profile_directory;
+    std::string active_profile_id = "default";
+    std::string layout_event;
+    bool hardware_pressed[G13_NUM_KEYS] = {};
+    long long press_events[G13_NUM_KEYS] = {};
+    bool input_state_dirty = false;
+    void record_key_state(int key, bool pressed);
     void check_for_config_update();
     void publish_state();
 

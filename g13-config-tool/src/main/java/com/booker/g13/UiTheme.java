@@ -94,7 +94,7 @@ public final class UiTheme {
                 "RadioButton.disabledText", "ComboBox.disabledForeground", "TextField.inactiveForeground");
         putColor(border, "Separator.foreground", "Separator.background", "Button.shadow", "controlShadow",
                 "TextField.shadow", "ComboBox.buttonShadow");
-        putColor(selection, "List.selectionBackground", "Table.selectionBackground", "ComboBox.selectionBackground");
+        putColor(selection, "List.selectionBackground", "Table.selectionBackground", "ComboBox.selectionBackground", "ToggleButton.select");
         putColor(selectionText, "List.selectionForeground", "Table.selectionForeground", "ComboBox.selectionForeground");
         Color gradientTop = color(value ? 0x313B4B : 0xFFFFFF);
         Color gradientBottom = color(value ? 0x222A36 : 0xE5EAF0);

@@ -102,6 +102,7 @@ void G13::start() {
             break; 
         }
     }
+    unlink(ConfigPath::getStatePath().c_str());
 }
 
 void G13::stop() {
@@ -140,11 +141,26 @@ void G13::publish_state() {
     const std::string temporary = path + ".tmp." + std::to_string(getpid());
     std::ofstream state(temporary, std::ios::trunc);
     if (!state.is_open()) return;
-    state << "profile=" << ConfigPath::getSelectedProfileId() << '\n'
-          << "layout=" << bindings << '\n';
+    state << "profile=" << active_profile_id << '\n'
+          << "layout=" << bindings << '\n'
+          << "layout-event=" << layout_event << '\n';
+    state << "pressed=";
+    bool separator = false;
+    for (int key = 0; key < G13_NUM_KEYS; ++key) if (hardware_pressed[key]) {
+        if (separator) state << ',';
+        state << key;
+        separator = true;
+    }
+    state << "\npress-events=";
+    for (int key = 0; key < G13_NUM_KEYS; ++key) {
+        if (key) state << ',';
+        state << press_events[key];
+    }
+    state << '\n';
     state.close();
     chmod(temporary.c_str(), 0600);
     if (rename(temporary.c_str(), path.c_str()) != 0) unlink(temporary.c_str());
+    else input_state_dirty = false;
 }
 
 std::unique_ptr<Macro> G13::loadMacro(int num) {
@@ -270,6 +286,8 @@ void G13::parse_bindings_from_stream(std::istream& stream) {
 void G13::loadBindings() {
     // Snapshot the directory so the bank and all referenced macros come from one profile.
     profile_directory = ConfigPath::getActiveProfileDir();
+    const std::string directory_name = profile_directory.substr(profile_directory.find_last_of('/') + 1);
+    active_profile_id = directory_name.size() == 36 ? directory_name : "default";
     ConfigPath::ensureConfigDirExists();
     std::string filename = profile_directory + "/bindings-" + std::to_string(bindings) + ".properties";
     // Missing entries must become unassigned rather than retain the preceding bank's actions.
@@ -378,6 +396,7 @@ int G13::read() {
     if (size == G13_REPORT_SIZE) {
         parse_joystick(buffer);
         parse_keys(buffer);
+        if (input_state_dirty) publish_state();
         UInput::send_event(EV_SYN, SYN_REPORT, 0);
     }
     return 0;
@@ -389,6 +408,10 @@ void G13::parse_joystick(unsigned char *buf) {
     int stick_y = buf[2];
 
     if (stick_mode == STICK_ABSOLUTE) {
+        record_key_state(36, stick_y <= 96);
+        record_key_state(37, stick_x <= 96);
+        record_key_state(38, stick_x >= 160);
+        record_key_state(39, stick_y >= 160);
         UInput::send_event(EV_ABS, ABS_X, stick_x);
         UInput::send_event(EV_ABS, ABS_Y, stick_y);
     } else if (stick_mode == STICK_KEYS) {
@@ -408,8 +431,16 @@ void G13::parse_joystick(unsigned char *buf) {
     }
 }
 
+void G13::record_key_state(int key, bool pressed) {
+    if (key < 0 || key >= G13_NUM_KEYS || hardware_pressed[key] == pressed) return;
+    hardware_pressed[key] = pressed;
+    if (pressed) press_events[key] = std::chrono::steady_clock::now().time_since_epoch().count();
+    input_state_dirty = true;
+}
+
 void G13::handle_key_state(int key, int pressed) {
     if (key < 0 || key >= G13_NUM_KEYS) return;
+    record_key_state(key, pressed != 0);
 #ifdef G13_INPUT_DEBUG
     const char* input_debug = getenv("G13_INPUT_DEBUG");
     if (pressed != (actions[key] && actions[key]->isPressed()))
@@ -423,9 +454,14 @@ void G13::handle_key_state(int key, int pressed) {
     }
     if (pressed && bank_targets[key] >= 0) {
         bank_switch_held[key] = true;
+        // A fresh event also lets the GUI follow a press of the already-active M-key.
+        // Keep it stable across config reloads so saving edits cannot reset the GUI layout.
+        layout_event = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
         if (bindings != bank_targets[key]) {
             bindings = bank_targets[key];
             loadBindings();
+        } else {
+            publish_state();
         }
         return;
     }

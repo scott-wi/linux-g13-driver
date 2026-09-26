@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <title>Theatre mode</title>
+  <!-- Original icon for this project: expand the preview to its four corners. -->
+  <polyline points="9,4 4,4 4,9"/>
+  <polyline points="15,4 20,4 20,9"/>
+  <polyline points="4,15 4,20 9,20"/>
+  <polyline points="20,15 20,20 15,20"/>
+</svg>
