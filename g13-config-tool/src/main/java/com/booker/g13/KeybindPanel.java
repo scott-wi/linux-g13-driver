@@ -2,8 +2,9 @@ package com.booker.g13;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.FlowLayout;
-import java.awt.GridLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
@@ -30,7 +31,7 @@ public class KeybindPanel extends JPanel {
 	private static final long serialVersionUID = 1L;
 
 	// --- UI Components for Passthrough Binding ---
-	private final JCheckBox passthroughButton = new JCheckBox("Pass Through");
+	private final JCheckBox passthroughButton = new JCheckBox("Pass through");
 	private final JTextField passthroughText = new JTextField();
 	private final ButtonGroup buttonGroup = new ButtonGroup();
     private int passthroughCode = 0; // The Linux keycode for the passthrough key.
@@ -38,10 +39,10 @@ public class KeybindPanel extends JPanel {
 	// --- UI Components for Macro Binding ---
 	private final JCheckBox macroButton = new JCheckBox("Macro");
 	private final JComboBox<Properties> macroSelectionBox = new JComboBox<>();
-	private final JCheckBox repeatsCheckBox = new JCheckBox("Auto Repeat");
+	private final JCheckBox repeatsCheckBox = new JCheckBox("Auto repeat");
 	
 	// --- UI Components for Screen Color ---
-	private final JButton colorChangeButton = new JButton("Click Here To Change");
+	private final JButton colorChangeButton = new JButton("Choose screen color");
 	
 	// --- State Variables ---
 	private int bindingsId = -1; // The ID of the currently loaded binding profile (0-3).
@@ -56,8 +57,8 @@ public class KeybindPanel extends JPanel {
 	 * Constructs the KeybindPanel, setting up its UI and event listeners.
 	 */
 	public KeybindPanel() {
-		setLayout(new BorderLayout());
-		setBorder(BorderFactory.createTitledBorder("Keybindings Panel"));
+		setLayout(new BorderLayout(0, 10));
+		setBorder(UiTheme.sectionBorder("Key bindings"));
 		
 		setupUI();
         attachListeners();
@@ -79,17 +80,31 @@ public class KeybindPanel extends JPanel {
 		// Disable focus traversal for the passthrough text field to capture all key events.
 		passthroughText.setFocusTraversalKeysEnabled(false);
 		
-		final JPanel grid = new JPanel(new GridLayout(0, 2, 5, 5)); // Layout with spacing
-		grid.add(passthroughButton);
-		grid.add(passthroughText);
-		grid.add(new JLabel(" ")); // Spacer
-		grid.add(new JLabel(" ")); // Spacer
-		grid.add(macroButton);
-		grid.add(macroSelectionBox);
-		grid.add(new JLabel(" ")); // Spacer
-		grid.add(repeatsCheckBox);
-		
-		grid.setBorder(BorderFactory.createTitledBorder("Button Type"));
+		final JPanel grid = new JPanel(new GridBagLayout());
+		GridBagConstraints c = new GridBagConstraints();
+		c.anchor = GridBagConstraints.WEST;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.insets = new Insets(0, 0, 10, 10);
+		c.gridx = 0;
+		c.gridy = 0;
+		c.weightx = 0;
+		grid.add(passthroughButton, c);
+		c.gridx = 1;
+		c.weightx = 1;
+		c.insets = new Insets(0, 0, 10, 0);
+		grid.add(passthroughText, c);
+		c.gridx = 0;
+		c.gridy = 1;
+		c.weightx = 0;
+		c.insets = new Insets(0, 0, 8, 10);
+		grid.add(macroButton, c);
+		c.gridx = 1;
+		c.weightx = 1;
+		c.insets = new Insets(0, 0, 8, 0);
+		grid.add(macroSelectionBox, c);
+		c.gridy = 2;
+		c.insets = new Insets(0, 0, 0, 0);
+		grid.add(repeatsCheckBox, c);
 		
 		// Use a custom renderer to display macro names in the combo box.
 		macroSelectionBox.setRenderer(new MacroListCellRenderer());
@@ -169,11 +184,11 @@ public class KeybindPanel extends JPanel {
 				int r = Integer.parseInt(parts[0].trim());
 				int g = Integer.parseInt(parts[1].trim());
 				int b = Integer.parseInt(parts[2].trim());
-				colorChangeButton.setBackground(new Color(r, g, b));
+				setColorButton(new Color(r, g, b));
 			}
 		} catch (NumberFormatException e) {
 			System.err.println("Invalid color format in properties: " + val);
-			colorChangeButton.setBackground(Color.WHITE); // Fallback to white.
+			setColorButton(Color.WHITE); // Fallback to white.
 		}
 		
 		setSelectedKey(null); // Reset selection when bindings change.
@@ -248,7 +263,7 @@ public class KeybindPanel extends JPanel {
 		
 		// Store color as an "R,G,B" string.
 		bindings.setProperty("color", newColor.getRed() + "," + newColor.getGreen() + "," + newColor.getBlue());
-		colorChangeButton.setBackground(newColor);
+		setColorButton(newColor);
 		
 		try {
 			Configs.saveBindings(bindingsId, bindings);
@@ -257,15 +272,22 @@ public class KeybindPanel extends JPanel {
 			JOptionPane.showMessageDialog(this, "Could not save color setting: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
 		}
 	}
+
+	private void setColorButton(Color color) {
+		colorChangeButton.setBackground(color);
+		double luminance = (0.2126 * color.getRed() + 0.7152 * color.getGreen() + 0.0722 * color.getBlue()) / 255.0;
+		colorChangeButton.setForeground(luminance > 0.55 ? Color.BLACK : Color.WHITE);
+	}
 	
 	/**
 	 * Factory method to create the color selection panel.
 	 * @return The configured JPanel for color selection.
 	 */
 	private JPanel createColorPanel() {
-		final JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT));
-		p.setBorder(BorderFactory.createTitledBorder("Screen Color"));
-		p.add(colorChangeButton);
+		final JPanel p = new JPanel(new BorderLayout(12, 0));
+		p.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
+		p.add(new JLabel("Screen color"), BorderLayout.WEST);
+		p.add(colorChangeButton, BorderLayout.CENTER);
 		colorChangeButton.addActionListener(e -> changeScreenColor());
 		return p;
 	}

@@ -23,10 +23,27 @@ public class ProfileGuiTest {
         }
         return null;
     }
+    static JCheckBox checkbox(Container parent, String label) {
+        for (Component c : parent.getComponents()) {
+            if (c instanceof JCheckBox box && box.getText().equals(label)) return box;
+            if (c instanceof Container container) { JCheckBox box = checkbox(container, label); if (box != null) return box; }
+        }
+        return null;
+    }
     static void layout(Container c) { c.doLayout(); for (Component child : c.getComponents()) if (child instanceof Container next) layout(next); }
+    static BufferedImage render(Container component, Path output) throws Exception {
+        layout(component);
+        BufferedImage image = new BufferedImage(component.getWidth(), component.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        component.printAll(graphics);
+        graphics.dispose();
+        ImageIO.write(image, "png", output.toFile());
+        return image;
+    }
     public static void main(String[] args) throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             try {
+                UiTheme.apply(false);
                 // Initialize the legacy files as a real first launch would.
                 new G13();
                 byte[] legacy = Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"));
@@ -67,21 +84,31 @@ public class ProfileGuiTest {
                 ProfileImportTest.check("c,42,17".equals(Configs.loadBindings(0).getProperty("G0")), "viewing chord changed binding");
                 button(sidebar, "Set as default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
-                JCheckBox persistence = find(sidebar, JCheckBox.class);
+                JCheckBox persistence = checkbox(sidebar, "Persistent profile");
                 persistence.doClick();
                 ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
                 selector.setSelectedValue(store.find("default"), true);
                 ProfileImportTest.check(Arrays.equals(legacy, Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"))), "switching damaged legacy bindings");
                 selector.setSelectedValue(saved, true);
                 bindings.setSelectedKey(Key.getKeyFor(0));
+                ImageMap imageMap = find(gui, ImageMap.class);
+                for (Dimension size : java.util.List.of(new Dimension(491, 710), new Dimension(820, 500), new Dimension(360, 760))) {
+                    imageMap.setSize(size);
+                    Point keyCenter = imageMap.imagePointToComponent(80, 203);
+                    ProfileImportTest.check(imageMap.keyAtComponent(keyCenter) == Key.getKeyFor(0),
+                            "resized keypad hit region no longer tracks its image");
+                }
                 gui.setSize(gui.getPreferredSize());
-                layout(gui);
-                BufferedImage image = new BufferedImage(gui.getWidth(), gui.getHeight(), BufferedImage.TYPE_INT_RGB);
-                Graphics2D graphics = image.createGraphics();
-                gui.printAll(graphics);
-                graphics.dispose();
-                ImageIO.write(image, "png", Path.of(args[0]).toFile());
-                System.out.println("Headless GUI profile selection, activation and preservation tests passed.");
+                BufferedImage light = render(gui, Path.of(args[0]));
+                checkbox(sidebar, "Dark mode").doClick();
+                ProfileImportTest.check(UiTheme.isDark(), "dark-mode control did not apply the theme");
+                ProfileImportTest.check(Files.readString(Configs.getRootDir().resolve("ui.properties")).contains("theme=dark"),
+                        "dark-mode preference was not persisted");
+                SwingUtilities.updateComponentTreeUI(gui);
+                Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
+                BufferedImage dark = render(gui, darkPath);
+                ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
+                System.out.println("Headless GUI profiles, themes, spacing, and resize alignment tests passed.");
             } catch (Exception e) { throw new RuntimeException(e); }
         });
     }
