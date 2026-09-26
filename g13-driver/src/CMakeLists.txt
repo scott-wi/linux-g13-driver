@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 # Project Name
 project(linux-g13-driver CXX)
 
+option(G13_INPUT_DEBUG "Compile per-event input tracing support" OFF)
+
 # Enforce C++ Standard (C++17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -33,6 +35,10 @@ file(GLOB SOURCES "cpp/*.cpp")
 
 # Define the executable
 add_executable(Linux-G13-Driver ${SOURCES})
+
+if(G13_INPUT_DEBUG)
+    target_compile_definitions(Linux-G13-Driver PRIVATE G13_INPUT_DEBUG=1)
+endif()
 
 # Link libraries
 target_link_libraries(Linux-G13-Driver 

@@ -52,7 +52,9 @@ make install-user    # Install the built release for this user
 For quick testing of the current checkout on a system-wide managed installation,
 run `./local-make.sh` as your desktop user. It builds the driver and Java GUI,
 installs the local release through `sudo`, refreshes device access, and restarts
-the user service. Close and reopen the configuration window afterward.
+the user service. Close and reopen the configuration window afterward. Per-event
+input logging is disabled by default; use `./local-make.sh --debug-input` when a
+trace is needed.
 
 To enable or restart the user service as part of user deployment, use
 `make install-user DEPLOY_FLAGS=--activate`.

@@ -19,17 +19,57 @@
 using namespace std;
 
 // Initialization of static class members.
-int UInput::file = -1;
+int UInput::keyboard_file = -1;
+int UInput::pointer_file = -1;
+int UInput::joystick_file = -1;
 std::mutex UInput::plock;
+
+namespace {
+bool pointer_button(int code) {
+    return code >= BTN_MOUSE && code <= BTN_TASK;
+}
+
+bool joystick_button(int code) {
+    return (code >= BTN_MISC && code <= BTN_9)
+        || (code >= BTN_JOYSTICK && code <= BTN_THUMBR)
+        || (code >= BTN_DPAD_UP && code <= BTN_DPAD_RIGHT)
+        || (code >= BTN_TRIGGER_HAPPY1 && code <= BTN_TRIGGER_HAPPY40);
+}
+
+bool any_button(int code) {
+    return (code >= BTN_MISC && code <= BTN_GEAR_UP)
+        || (code >= BTN_DPAD_UP && code <= BTN_DPAD_RIGHT)
+        || (code >= BTN_TRIGGER_HAPPY1 && code <= BTN_TRIGGER_HAPPY40);
+}
+
+bool set_capability(int file, unsigned long request, int value, const char* name) {
+    if (ioctl(file, request, value) == 0) return true;
+    syslog(LOG_ERR, "Could not configure %s capability %d: %s", name, value, strerror(errno));
+    return false;
+}
+
+bool finish_device(int file, uinput_user_dev& device, const char* name) {
+    if (write(file, &device, sizeof(device)) != static_cast<ssize_t>(sizeof(device))) {
+        syslog(LOG_ERR, "Could not configure %s: %s", name, strerror(errno));
+        return false;
+    }
+    if (ioctl(file, UI_DEV_CREATE) == 0) return true;
+    syslog(LOG_ERR, "Could not create %s: %s", name, strerror(errno));
+    return false;
+}
+
+void close_device(int& file) {
+    if (file < 0) return;
+    ioctl(file, UI_DEV_DESTROY);
+    close(file);
+    file = -1;
+}
+}
 
 /**
  * @brief Sends a single input event to the virtual uinput device.
  */
 void UInput::send_event(int type, int code, int val) {
-	if (file < 0) {
-		return;
-	}
-
     // Modern C++ RAII lock (replaces pthread_mutex_lock/unlock)
 	const std::lock_guard<std::mutex> lock(plock);
 
@@ -41,40 +81,57 @@ void UInput::send_event(int type, int code, int val) {
 	event.value = val;
 
 	// Write the event structure to the uinput file descriptor.
-	ssize_t written = write(file, &event, sizeof(event));
-	if (written != static_cast<ssize_t>(sizeof(event)))
-		syslog(LOG_ERR, "Failed to emit uinput event type=%d code=%d value=%d: %s",
-				type, code, val, written < 0 ? strerror(errno) : "short write");
-	else if (type == EV_KEY)
-		syslog(LOG_DEBUG, "Output key code=%d value=%d", code, val);
+    int targets[3];
+    int count = 0;
+    if (type == EV_SYN) {
+        targets[count++] = keyboard_file;
+        targets[count++] = pointer_file;
+        targets[count++] = joystick_file;
+    } else if (type == EV_ABS || (type == EV_KEY && joystick_button(code))) {
+        targets[count++] = joystick_file;
+    } else if (type == EV_KEY && pointer_button(code)) {
+        targets[count++] = pointer_file;
+    } else {
+        targets[count++] = keyboard_file;
+    }
+    for (int target : targets) {
+        if (target < 0) continue;
+        ssize_t written = write(target, &event, sizeof(event));
+        if (written != static_cast<ssize_t>(sizeof(event)))
+            syslog(LOG_ERR, "Failed to emit uinput event type=%d code=%d value=%d: %s",
+                    type, code, val, written < 0 ? strerror(errno) : "short write");
+    }
+#ifdef G13_INPUT_DEBUG
+    const char* input_debug = getenv("G13_INPUT_DEBUG");
+	if (type == EV_KEY && input_debug && strcmp(input_debug, "1") == 0)
+        syslog(LOG_DEBUG, "Output key code=%d value=%d", code, val);
+#endif
 }
 
 /**
  * @brief Flushes any buffered data.
  */
 void UInput::flush() {
-    if (file < 0) return;
 	const std::lock_guard<std::mutex> lock(plock);
-	fsync(file);
+	if (keyboard_file >= 0) fsync(keyboard_file);
+	if (pointer_file >= 0) fsync(pointer_file);
+	if (joystick_file >= 0) fsync(joystick_file);
 }
 
 /**
  * @brief Closes and destroys the virtual uinput device.
  */
 void UInput::close_uinput() {
-    if (file >= 0) {
-        // Destroy the uinput device via ioctl before closing the file.
-        ioctl(file, UI_DEV_DESTROY);
-        close(file);
-        file = -1; 
-    }
+    const std::lock_guard<std::mutex> lock(plock);
+    close_device(keyboard_file);
+    close_device(pointer_file);
+    close_device(joystick_file);
 }
 
 /**
  * @brief Creates and configures the virtual uinput device.
  */
 bool UInput::create_uinput() {
-	struct uinput_user_dev uinp;
 	const char* dev_uinput_fname =
 			access("/dev/input/uinput", F_OK) == 0 ? "/dev/input/uinput" :
 			access("/dev/uinput", F_OK) == 0 ? "/dev/uinput" : 0;
@@ -89,51 +146,46 @@ bool UInput::create_uinput() {
 		return false;
 	}
 
-	file = open(dev_uinput_fname, O_WRONLY | O_NDELAY);
-	if (file < 0) {
-		syslog(LOG_ERR, "Could not open uinput");
-		return false;
-	}
+    keyboard_file = open(dev_uinput_fname, O_WRONLY);
+    pointer_file = open(dev_uinput_fname, O_WRONLY);
+    joystick_file = open(dev_uinput_fname, O_WRONLY);
+    if (keyboard_file < 0 || pointer_file < 0 || joystick_file < 0) {
+        syslog(LOG_ERR, "Could not open uinput: %s", strerror(errno));
+        close_uinput();
+        return false;
+    }
 
-	// Configure the virtual device.
-	memset(&uinp, 0, sizeof(uinp));
-	const char name[] = "G13";
-	snprintf(uinp.name, UINPUT_MAX_NAME_SIZE, "%s", name);
+    uinput_user_dev keyboard{};
+    snprintf(keyboard.name, UINPUT_MAX_NAME_SIZE, "%s", "G13 Keyboard");
+    keyboard.id = {BUS_USB, G13_VENDOR_ID, G13_PRODUCT_ID, 1};
+    if (!set_capability(keyboard_file, UI_SET_EVBIT, EV_KEY, keyboard.name)) { close_uinput(); return false; }
+    for (int code = 1; code <= KEY_MAX; ++code)
+        if (!any_button(code)
+                && !set_capability(keyboard_file, UI_SET_KEYBIT, code, keyboard.name)) { close_uinput(); return false; }
+    if (!finish_device(keyboard_file, keyboard, keyboard.name)) { close_uinput(); return false; }
 
-	uinp.id.version = 1;
-	uinp.id.bustype = BUS_USB;
-	uinp.id.product = G13_PRODUCT_ID;
-	uinp.id.vendor = G13_VENDOR_ID;
-	uinp.absmin[ABS_X] = 0;   
-	uinp.absmin[ABS_Y] = 0;   
-	uinp.absmax[ABS_X] = 0xff;
-	uinp.absmax[ABS_Y] = 0xff;
+    uinput_user_dev pointer{};
+    snprintf(pointer.name, UINPUT_MAX_NAME_SIZE, "%s", "G13 Pointer");
+    pointer.id = {BUS_USB, G13_VENDOR_ID, G13_PRODUCT_ID, 1};
+    if (!set_capability(pointer_file, UI_SET_EVBIT, EV_KEY, pointer.name)
+            || !set_capability(pointer_file, UI_SET_EVBIT, EV_REL, pointer.name)
+            || !set_capability(pointer_file, UI_SET_RELBIT, REL_X, pointer.name)
+            || !set_capability(pointer_file, UI_SET_RELBIT, REL_Y, pointer.name)) { close_uinput(); return false; }
+    for (int code = BTN_MOUSE; code <= BTN_TASK; ++code)
+        if (!set_capability(pointer_file, UI_SET_KEYBIT, code, pointer.name)) { close_uinput(); return false; }
+    if (!finish_device(pointer_file, pointer, pointer.name)) { close_uinput(); return false; }
 
-	// Enable event types
-	ioctl(file, UI_SET_EVBIT, EV_KEY);
-	ioctl(file, UI_SET_EVBIT, EV_ABS);
-	ioctl(file, UI_SET_MSCBIT, MSC_SCAN);
-	ioctl(file, UI_SET_ABSBIT, ABS_X);
-	ioctl(file, UI_SET_ABSBIT, ABS_Y);
-
-    // Advertise the complete Linux EV_KEY range, including media and mouse buttons.
-    for (int i = 0; i <= KEY_MAX; i++)
-		ioctl(file, UI_SET_KEYBIT, i);
-
-	// Write configuration
-	int retcode = write(file, &uinp, sizeof(uinp));
-	if (retcode < 0) {
-		syslog(LOG_ERR, "Could not write to uinput device (%d)", retcode);
-        close(file); file = -1;
-		return false;
-	}
-
-	// Create device
-	retcode = ioctl(file, UI_DEV_CREATE);
-	if (retcode) {
-		syslog(LOG_ERR, "Error creating uinput device for G13");
-        close(file); file = -1;
-		return false;
-	}
-	return true;
+    uinput_user_dev joystick{};
+    snprintf(joystick.name, UINPUT_MAX_NAME_SIZE, "%s", "G13 Joystick");
+    joystick.id = {BUS_USB, G13_VENDOR_ID, G13_PRODUCT_ID, 1};
+    joystick.absmin[ABS_X] = joystick.absmin[ABS_Y] = 0;
+    joystick.absmax[ABS_X] = joystick.absmax[ABS_Y] = 0xff;
+    if (!set_capability(joystick_file, UI_SET_EVBIT, EV_KEY, joystick.name)
+            || !set_capability(joystick_file, UI_SET_EVBIT, EV_ABS, joystick.name)
+            || !set_capability(joystick_file, UI_SET_ABSBIT, ABS_X, joystick.name)
+            || !set_capability(joystick_file, UI_SET_ABSBIT, ABS_Y, joystick.name)) { close_uinput(); return false; }
+    for (int code = 1; code <= KEY_MAX; ++code)
+        if (joystick_button(code) && !set_capability(joystick_file, UI_SET_KEYBIT, code, joystick.name)) { close_uinput(); return false; }
+    if (!finish_device(joystick_file, joystick, joystick.name)) { close_uinput(); return false; }
+    return true;
 }

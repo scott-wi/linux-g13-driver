@@ -3,6 +3,11 @@ ROOT := $(abspath ../..)
 RELEASE ?= $(ROOT)/dist/latest
 DESTDIR ?=
 DEPLOY_FLAGS ?=
+INPUT_DEBUG ?= 0
+
+ifeq ($(filter $(INPUT_DEBUG),0 1),)
+$(error INPUT_DEBUG must be 0 or 1)
+endif
 
 .PHONY: all dependencies build-driver build-gui release stage install install-user rollback rollback-user status status-user hardware clean clean-build test
 
@@ -12,14 +17,14 @@ dependencies:
 	bash scripts/install_deps.sh
 
 build-driver:
-	cmake -S . -B ../build
+	cmake -S . -B ../build -DG13_INPUT_DEBUG=$(if $(filter 1,$(INPUT_DEBUG)),ON,OFF)
 	cmake --build ../build
 
 build-gui:
 	cd ../../g13-config-tool && mvn -B -ntp package -DskipTests
 
 release: build-driver build-gui
-	bash scripts/release.sh
+	G13_INPUT_DEBUG_BUILD=$(INPUT_DEBUG) bash scripts/release.sh
 
 # Compatibility alias for the former staging target.
 stage: release

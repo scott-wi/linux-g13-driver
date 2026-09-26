@@ -4,18 +4,27 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: ./local-make.sh
+Usage: ./local-make.sh [--debug-input]
 
 Run from your desktop session, without sudo. Builds both the native driver and
 Java GUI from this checkout, installs the generated release system-wide, then
 restarts the G13 user service. Existing configuration is preserved.
 
+  --debug-input  Compile and enable per-event input tracing in the service.
+                 Keystrokes are not logged by default.
+
 Close and reopen the G13 configuration window after the script completes.
 EOF
 }
 
-if [[ ${1:-} == --help || ${1:-} == -h ]]; then usage; exit 0; fi
-(($# == 0)) || { printf 'Unknown argument. Use --help.\n' >&2; exit 1; }
+debug_input=false
+while (($#)); do
+    case "$1" in
+        --debug-input) debug_input=true; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) printf 'Unknown argument: %s. Use --help.\n' "$1" >&2; exit 1 ;;
+    esac
+done
 ((EUID != 0)) || {
     printf 'Run this as your desktop user, without sudo; it requests sudo when needed.\n' >&2
     exit 1
@@ -31,7 +40,13 @@ systemctl --user show-environment >/dev/null || {
 }
 
 printf '\nBuilding the driver, Java GUI, and local release...\n'
-make -C "$repo" all
+make_args=()
+deploy_args=()
+if $debug_input; then
+    make_args+=(INPUT_DEBUG=1)
+    deploy_args+=(DEPLOY_FLAGS=--debug-input)
+fi
+make -C "$repo" all "${make_args[@]}"
 
 release=$(readlink -f -- "$repo/dist/latest")
 [[ -x $release/install.sh ]] || {
@@ -41,7 +56,7 @@ release=$(readlink -f -- "$repo/dist/latest")
 
 printf '\nInstalling local release: %s\n' "$release"
 sudo -v
-sudo make -C "$repo" install
+sudo make -C "$repo" install "${deploy_args[@]}"
 
 printf '\nRefreshing device access and restarting the user service...\n'
 sudo modprobe uinput
@@ -64,4 +79,5 @@ systemctl --user is-active --quiet g13.service || {
 }
 
 printf '\nLocal release installed and g13.service is active.\n'
+$debug_input && printf 'Input event tracing is enabled; view it with: journalctl --user -u g13.service -f\n'
 printf 'Close and reopen the configuration window, or launch: g13-gui\n'

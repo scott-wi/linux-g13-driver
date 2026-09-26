@@ -91,6 +91,8 @@ run_ok --check
 run_ok --scope system
 grep -q 'deploy install --scope system' "$base/calls"
 grep -q 'systemctl --user restart g13.service' "$base/calls"
+run_ok --scope system --debug-input
+grep -q 'deploy install --scope system --debug-input' "$base/calls"
 run_ok --scope user --tag preview-main-123-1
 grep -q 'deploy hardware' "$base/calls"
 mkdir -p "$base/home/.config/systemd/user"

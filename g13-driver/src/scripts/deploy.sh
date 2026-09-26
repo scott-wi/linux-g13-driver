@@ -9,13 +9,14 @@ Usage: bash install.sh {install|rollback|status|hardware} [options]
   --scope user|system         Installation scope (default: user)
   --destdir /staging/root     Stage files only; never activate services/devices
   --activate                 Enable/restart the user service after deployment
+  --debug-input              Enable per-event logs in a debug-compiled release
   --replace-legacy           Back up conflicting files before migrating them
   --allow-platform-mismatch  Override distro/version/architecture check
 EOF
 }
 command=${1:---help}
 case "$command" in --help|-h) usage; exit 0 ;; install|rollback|status|hardware) shift ;; *) usage >&2; exit 1 ;; esac
-scope=user destdir= activate=false replace_legacy=false allow_mismatch=false
+scope=user destdir= activate=false replace_legacy=false allow_mismatch=false debug_input=false
 while (($#)); do
     case "$1" in
         --scope|--destdir)
@@ -23,6 +24,7 @@ while (($#)); do
             if [[ $1 == --scope ]]; then scope=$2; else destdir=$2; fi
             shift 2 ;;
         --activate) activate=true; shift ;;
+        --debug-input) debug_input=true; shift ;;
         --replace-legacy) replace_legacy=true; shift ;;
         --allow-platform-mismatch) allow_mismatch=true; shift ;;
         --help|-h) usage; exit 0 ;;
@@ -32,6 +34,9 @@ done
 [[ $scope == user || $scope == system ]] || die 'Scope must be user or system'
 if $activate; then
     [[ $scope == user && ( $command == install || $command == rollback ) ]] || die '--activate is only supported for user installation or rollback'
+fi
+if $debug_input; then
+    [[ $command == install || $command == rollback ]] || die '--debug-input is only supported for installation or rollback'
 fi
 if [[ -n $destdir ]]; then
     absolute_path "$destdir"
@@ -106,6 +111,9 @@ if [[ $command == rollback ]]; then
 fi
 verify_release "$source_dir"
 release=${metadata[release]}
+if $debug_input && [[ ${metadata[input_debug]} != true ]]; then
+    die 'This release was not compiled with input tracing; rebuild with INPUT_DEBUG=1'
+fi
 read_host
 if ! $allow_mismatch; then
     [[ ${metadata[os_id]} == "$host_os" && ${metadata[os_version]} == "$host_version" &&
@@ -168,7 +176,12 @@ driver=${driver//\$/\$\$}
 generated=$(mktemp "$root/.g13-unit-XXXXXX")
 temporaries+=("$generated")
 while IFS= read -r line || [[ -n $line ]]; do
-    if [[ $line == 'ExecStart=@DRIVER@' ]]; then printf 'ExecStart="%s"\n' "$driver"; else printf '%s\n' "$line"; fi
+    if [[ $line == 'ExecStart=@DRIVER@' ]]; then
+        printf 'ExecStart="%s"\n' "$driver"
+        $debug_input && printf 'Environment=G13_INPUT_DEBUG=1\n'
+    else
+        printf '%s\n' "$line"
+    fi
 done < "$target/share/systemd/g13.service.in" > "$generated"
 atomic_copy "$generated" "$destdir$unit"
 if [[ $scope == system ]]; then atomic_copy "$target/share/udev/99-g13.rules" "$rules"; fi

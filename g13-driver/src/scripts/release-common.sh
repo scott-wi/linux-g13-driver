@@ -23,14 +23,21 @@ read_metadata() {
     metadata=()
     while IFS='=' read -r key value; do
         case "$key" in
-            format|release|version|revision|dirty|os_id|os_version|architecture) ;;
+            format|release|version|revision|dirty|os_id|os_version|architecture|input_debug) ;;
             *) die 'Unknown release metadata field' ;;
         esac
         [[ ! ${metadata[$key]+present} && $value =~ ^[A-Za-z0-9._-]*$ ]] || die 'Invalid release metadata'
         metadata[$key]=$value
     done < "$1/release.meta"
-    [[ ${#metadata[@]} == 8 && ${metadata[format]:-} == 2 &&
-       ${metadata[release]:-} =~ ^g13-[A-Za-z0-9._-]+$ ]] || die 'Unsupported release metadata'
+    if [[ ${#metadata[@]} == 8 && ${metadata[format]:-} == 2 ]]; then
+        metadata[input_debug]=false
+    elif [[ ${#metadata[@]} == 9 && ${metadata[format]:-} == 3 &&
+            ( ${metadata[input_debug]:-} == true || ${metadata[input_debug]:-} == false ) ]]; then
+        :
+    else
+        die 'Unsupported release metadata'
+    fi
+    [[ ${metadata[release]:-} =~ ^g13-[A-Za-z0-9._-]+$ ]] || die 'Unsupported release metadata'
 }
 
 verify_release() {

@@ -7,6 +7,7 @@ source_dir=$(CDPATH= cd -- "$(dirname -- "$test_script")/.." && pwd)
 
 assert_eq() { [[ $1 == "$2" ]] || die "Expected '$2', got '$1'"; }
 assert_contains() { grep -Fq -- "$2" "$1" || die "Missing '$2' in $1"; }
+assert_not_contains() { ! grep -Fq -- "$2" "$1" || die "Unexpected '$2' in $1"; }
 run_deploy() { bash "$release/install.sh" "$@" --destdir "$stage" > "$base/output" 2>&1; }
 expect_failure() {
     if run_deploy "$@"; then die "Unexpected success: $*"; fi
@@ -14,6 +15,7 @@ expect_failure() {
 
 make_release() {
     release=$base/$1
+    input_debug=${2:-false}
     mkdir -p "$release"/{bin,libexec,share/java,share/systemd,share/udev}
     install -m 755 "$source_dir/scripts/deploy.sh" "$release/install.sh"
     install -m 644 "$source_dir/scripts/release-common.sh" "$release/release-common.sh"
@@ -27,8 +29,8 @@ make_release() {
     printf '%s\n' "$1" > "$release/share/java/Linux-G13-GUI.jar"
     printf 'test payload\n' > "$release/README.md"
     read_host
-    printf 'format=2\nrelease=%s\nversion=test\nrevision=test\ndirty=true\nos_id=%s\nos_version=%s\narchitecture=%s\n' \
-        "$1" "$host_os" "$host_version" "$host_arch" > "$release/release.meta"
+    printf 'format=3\nrelease=%s\nversion=test\nrevision=test\ndirty=true\nos_id=%s\nos_version=%s\narchitecture=%s\ninput_debug=%s\n' \
+        "$1" "$host_os" "$host_version" "$host_arch" "$input_debug" > "$release/release.meta"
     chmod 644 "$release/release.meta" "$release/README.md" "$release/share/java/Linux-G13-GUI.jar"
     write_checksums "$release"
 }
@@ -76,6 +78,16 @@ test_system_layout() {
     assert_eq "$(readlink "$stage/usr/local/bin/g13-gui")" /usr/local/lib/linux-g13-driver/current/bin/g13-gui
     [[ -f $stage/etc/udev/rules.d/99-g13.rules ]]
     [[ ! -e $base/runtime-command ]]
+}
+
+test_input_debug_flag() {
+    expect_failure install --scope system --debug-input
+    assert_contains "$base/output" 'not compiled with input tracing'
+    make_release g13-test-debug true
+    run_deploy install --scope system --debug-input
+    assert_contains "$stage/etc/systemd/user/g13.service" 'Environment=G13_INPUT_DEBUG=1'
+    run_deploy install --scope system
+    assert_not_contains "$stage/etc/systemd/user/g13.service" 'G13_INPUT_DEBUG'
 }
 
 test_user_layout_and_launchers() {
@@ -163,7 +175,7 @@ test_runtime_preflight() {
     [[ -f $XDG_DATA_HOME/linux-g13-driver/current/release.meta && ! -e $base/runtime-command ]]
 }
 
-tests=(test_update_rollback test_corruption_and_metadata test_system_layout
+tests=(test_update_rollback test_corruption_and_metadata test_system_layout test_input_debug_flag
     test_user_layout_and_launchers test_legacy_migration test_platform_and_inventory
     test_history_symlinks_and_permissions test_hardware_and_staging_guards test_runtime_preflight)
 if (($# == 0)); then

@@ -410,9 +410,13 @@ void G13::parse_joystick(unsigned char *buf) {
 
 void G13::handle_key_state(int key, int pressed) {
     if (key < 0 || key >= G13_NUM_KEYS) return;
+#ifdef G13_INPUT_DEBUG
+    const char* input_debug = getenv("G13_INPUT_DEBUG");
     if (pressed != (actions[key] && actions[key]->isPressed()))
-        syslog(LOG_DEBUG, "Input key G%d %s on M%d%s", key, pressed ? "down" : "up", bindings + 1,
-               bank_targets[key] >= 0 ? " (layout switch)" : "");
+        if (input_debug && strcmp(input_debug, "1") == 0)
+            syslog(LOG_DEBUG, "Input key G%d %s on M%d%s", key, pressed ? "down" : "up", bindings + 1,
+                   bank_targets[key] >= 0 ? " (layout switch)" : "");
+#endif
     if (bank_switch_held[key]) {
         if (!pressed) bank_switch_held[key] = false;
         return;

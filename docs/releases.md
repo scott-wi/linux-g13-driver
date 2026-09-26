@@ -19,6 +19,12 @@ make all             # Build driver + GUI, assemble release, create archive
 make test            # Temporary-directory deployment tests; no device access
 ```
 
+Normal builds omit per-event input logging. For a diagnostic release, build with
+`make all INPUT_DEBUG=1`, then install with
+`sudo make install DEPLOY_FLAGS=--debug-input`. The shortcut
+`./local-make.sh --debug-input` performs both steps. A release compiled without
+input tracing rejects `--debug-input`.
+
 Building never installs system packages or starts services. `make -j all` also
 works: release assembly waits for both builds. Release assembly, installation, and
 tests use Bash and standard GNU/Linux utilities (coreutils, find, grep, sed, tar/gzip).
