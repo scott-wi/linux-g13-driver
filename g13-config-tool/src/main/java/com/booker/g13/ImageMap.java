@@ -82,6 +82,10 @@ public class ImageMap extends JComponent {
             else keys.add(key.getShape().getBounds());
         }
         keys.grow(12, 12);
+        // Focus vertically on the controls, but keep the complete chassis width.
+        // Key polygons are inset from the image silhouette, especially on the left.
+        keys.x = 0;
+        keys.width = G13_KEYPAD.getIconWidth();
         return keys;
     }
 

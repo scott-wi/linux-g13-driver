@@ -47,8 +47,11 @@ public class G13 extends JPanel {
     private final JToggleButton profilesVisible = new JToggleButton("Profiles", true);
     private final JToggleButton editorVisible = new JToggleButton("Editor", true);
     private final JToggleButton theatre = new JToggleButton("Theatre");
-    private boolean restoreProfiles = true;
-    private boolean restoreEditor = true;
+    private static final int DIVIDER_SIZE = 8;
+    private JSplitPane profilesSplit;
+    private JSplitPane editorSplit;
+
+
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
     private ProfileSidebar profileSidebar;
@@ -112,7 +115,7 @@ public class G13 extends JPanel {
             }
             @Override public void error(Exception error) { showProfileError(error); }
         });
-		add(profileSidebar, BorderLayout.WEST);
+        setUsableSidebarSize(profileSidebar);
         // --- UI Assembly ---
 		final JPanel p = new JPanel(new BorderLayout());
 		p.setBorder(UiTheme.sectionBorder("G13 Keypad"));
@@ -125,29 +128,32 @@ public class G13 extends JPanel {
 			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
 		});
         JPanel viewBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        profilesVisible.setToolTipText("Show or hide the profiles sidebar");
-        editorVisible.setToolTipText("Show or hide the bindings and macro editor sidebar");
-        theatre.setToolTipText("Hide both sidebars and zoom to the assignable keys; click again to restore");
-        viewBar.add(profilesVisible);
-        viewBar.add(editorVisible);
+        configureSidebarButton(profilesVisible, "Profiles");
+        configureSidebarButton(editorVisible, "Editor");
+        updateSidebarButtons(true, true);
+        p.add(sidebarHandle(profilesVisible), BorderLayout.WEST);
+        p.add(sidebarHandle(editorVisible), BorderLayout.EAST);
+        theatre.setToolTipText("Hide both sidebars and zoom to the assignable keys");
         viewBar.add(theatre);
         profilesVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
         editorVisible.addActionListener(event -> setSidebarVisibility(profilesVisible.isSelected(), editorVisible.isSelected()));
-        theatre.addActionListener(event -> {
-            if (theatre.isSelected()) setSidebarVisibility(false, false);
-            else setSidebarVisibility(restoreProfiles, restoreEditor);
-        });
+        theatre.addActionListener(event -> setSidebarVisibility(false, false));
         JPanel toolbar = new JPanel(new BorderLayout(0, 4));
         toolbar.add(layoutBar, BorderLayout.NORTH);
         toolbar.add(viewBar, BorderLayout.SOUTH);
         p.add(toolbar, BorderLayout.NORTH);
 		p.add(g13Label, BorderLayout.CENTER);
-		add(p, BorderLayout.CENTER);
+        p.setMinimumSize(new Dimension(Math.max(330, p.getLayout().minimumLayoutSize(p).width), 300));
 		
 		editorSidebar.setPreferredSize(new Dimension(390, 720));
 		editorSidebar.add(keybindPanel, BorderLayout.NORTH);
 		editorSidebar.add(macroEditorPanel, BorderLayout.CENTER);
-		add(editorSidebar, BorderLayout.EAST);
+        setUsableSidebarSize(editorSidebar);
+        editorSplit = sidebarSplit(p, editorSidebar, 1.0);
+        editorSplit.setName("Editor divider");
+        profilesSplit = sidebarSplit(profileSidebar, editorSplit, 0.0);
+        profilesSplit.setName("Profiles divider");
+        add(profilesSplit, BorderLayout.CENTER);
 		
 		// Provide the macro data to the panels that need it.
 		keybindPanel.setMacros(macros);
@@ -155,17 +161,79 @@ public class G13 extends JPanel {
 		profileSidebar.refresh(editingProfile);
 	}
 
+    private static void setUsableSidebarSize(JPanel sidebar) {
+        int width = Math.max(sidebar.getPreferredSize().width,
+                sidebar.getLayout().minimumLayoutSize(sidebar).width + 12);
+        sidebar.setMinimumSize(new Dimension(width, 300));
+        sidebar.setPreferredSize(new Dimension(width, 720));
+    }
+
+    private static JSplitPane sidebarSplit(java.awt.Component left, java.awt.Component right, double resizeWeight) {
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, true, left, right);
+        split.setResizeWeight(resizeWeight);
+        split.setDividerSize(DIVIDER_SIZE);
+        split.setBorder(BorderFactory.createEmptyBorder());
+        return split;
+    }
+
+    private static void configureSidebarButton(JToggleButton button, String name) {
+        button.setName(name);
+        button.setText(null);
+        button.getAccessibleContext().setAccessibleName(name + " sidebar");
+        button.setMargin(new java.awt.Insets(10, 5, 10, 5));
+    }
+
+    private static JPanel sidebarHandle(JToggleButton button) {
+        JPanel rail = new JPanel(new java.awt.GridBagLayout());
+        rail.setOpaque(false);
+        rail.add(button);
+        return rail;
+    }
+
+    private void updateSidebarButtons(boolean showProfiles, boolean showEditor) {
+        profilesVisible.setIcon(chevron(!showProfiles));
+        editorVisible.setIcon(chevron(showEditor));
+        profilesVisible.setToolTipText((showProfiles ? "Hide" : "Show") + " profiles sidebar");
+        editorVisible.setToolTipText((showEditor ? "Hide" : "Show") + " editor sidebar");
+    }
+
+    private static Icon chevron(boolean right) {
+        return new Icon() {
+            public int getIconWidth() { return 12; }
+            public int getIconHeight() { return 18; }
+            public void paintIcon(java.awt.Component component, java.awt.Graphics graphics, int x, int y) {
+                java.awt.Graphics2D g = (java.awt.Graphics2D) graphics.create();
+                try {
+                    g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                            java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+                    g.setColor(component.getForeground());
+                    g.setStroke(new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND,
+                            java.awt.BasicStroke.JOIN_ROUND));
+                    int tip = right ? 9 : 3, tail = right ? 3 : 9;
+                    g.drawPolyline(new int[] {x + tail, x + tip, x + tail},
+                            new int[] {y + 3, y + 9, y + 15}, 3);
+                } finally { g.dispose(); }
+            }
+        };
+    }
+
     private void setSidebarVisibility(boolean showProfiles, boolean showEditor) {
         boolean focusKeys = !showProfiles && !showEditor;
-        if (focusKeys && (profileSidebar.isVisible() || editorSidebar.isVisible())) {
-            restoreProfiles = profileSidebar.isVisible();
-            restoreEditor = editorSidebar.isVisible();
-        }
+        boolean profilesChanged = showProfiles != profileSidebar.isVisible();
+        boolean editorChanged = showEditor != editorSidebar.isVisible();
         profileSidebar.setVisible(showProfiles);
         editorSidebar.setVisible(showEditor);
+        profilesSplit.setDividerSize(showProfiles ? DIVIDER_SIZE : 0);
+        editorSplit.setDividerSize(showEditor ? DIVIDER_SIZE : 0);
+        if (profilesChanged) profilesSplit.setDividerLocation(showProfiles ? profileSidebar.getMinimumSize().width : 0);
+        if (editorChanged) editorSplit.setDividerLocation(showEditor
+                ? Math.max(0, editorSplit.getWidth() - editorSidebar.getMinimumSize().width - DIVIDER_SIZE) : editorSplit.getWidth());
         profilesVisible.setSelected(showProfiles);
         editorVisible.setSelected(showEditor);
         theatre.setSelected(focusKeys);
+        theatre.setVisible(!focusKeys);
+        theatre.getParent().setVisible(!focusKeys);
+        updateSidebarButtons(showProfiles, showEditor);
         g13Label.setFocusKeys(focusKeys);
         revalidate();
         repaint();
@@ -367,7 +435,8 @@ public class G13 extends JPanel {
             frame.getContentPane().add(g13, BorderLayout.CENTER);
             
             frame.pack(); // Size the frame to fit its contents.
-            frame.setMinimumSize(new Dimension(1100, 720));
+            frame.setMinimumSize(new Dimension(Math.max(1100, g13.getMinimumSize().width
+                    + frame.getInsets().left + frame.getInsets().right), 720));
             frame.setLocationRelativeTo(null); // Center the frame on the screen.
             frame.setVisible(true);
         });

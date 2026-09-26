@@ -25,7 +25,7 @@ public class ProfileGuiTest {
     }
     static JToggleButton toggle(Container parent, String label) {
         for (Component c : parent.getComponents()) {
-            if (c instanceof JToggleButton b && b.getText().equals(label)) return b;
+            if (c instanceof JToggleButton b && (label.equals(b.getText()) || label.equals(b.getName()))) return b;
             if (c instanceof Container container) { JToggleButton b = toggle(container, label); if (b != null) return b; }
         }
         return null;
@@ -100,6 +100,62 @@ public class ProfileGuiTest {
         }
     }
 
+    static void checkControlsFit(Container container) {
+        for (Component child : container.getComponents()) {
+            if (!child.isVisible()) continue;
+            if (child instanceof AbstractButton || child instanceof JTextField || child instanceof JComboBox<?>) {
+                ProfileImportTest.check(child.getX() >= 0 && child.getWidth() > 0
+                        && child.getX() + child.getWidth() <= container.getWidth(),
+                        "sidebar control exceeds its container: " + child.getClass().getSimpleName());
+            }
+            if (child instanceof Container next && !(child instanceof JViewport)) checkControlsFit(next);
+        }
+    }
+
+    static void checkSidebarResize(G13 gui) {
+        gui.setSize(1920, 1080);
+        layout(gui);
+        ProfileSidebar profiles = find(gui, ProfileSidebar.class);
+        Container editor = find(gui, KeybindPanel.class).getParent();
+        JSplitPane leftSplit = (JSplitPane) profiles.getParent();
+        JSplitPane rightSplit = (JSplitPane) editor.getParent();
+        ImageMap map = find(gui, ImageMap.class);
+        leftSplit.setDividerLocation(430);
+        layout(gui);
+        rightSplit.setDividerLocation(rightSplit.getWidth() - 470 - rightSplit.getDividerSize());
+        layout(gui);
+        int leftWidth = profiles.getWidth(), rightWidth = editor.getWidth(), mapWidth = map.getWidth();
+        ProfileImportTest.check(leftWidth == 430 && rightWidth == 470, "sidebars did not follow divider locations");
+        toggle(gui, "Theatre").doClick();
+        layout(gui);
+        ProfileImportTest.check(leftSplit.getDividerSize() == 0 && rightSplit.getDividerSize() == 0,
+                "hidden sidebars left visible drag dividers");
+        toggle(gui, "Profiles").doClick();
+        layout(gui);
+        toggle(gui, "Editor").doClick();
+        layout(gui);
+        ProfileImportTest.check(profiles.getWidth() == profiles.getMinimumSize().width
+                && editor.getWidth() == editor.getMinimumSize().width,
+                "chevrons did not reopen sidebars at their minimum usable widths");
+        leftWidth = profiles.getWidth();
+        rightWidth = editor.getWidth();
+        mapWidth = map.getWidth();
+        gui.setSize(1600, 900);
+        layout(gui);
+        ProfileImportTest.check(map.getWidth() < mapWidth && profiles.getWidth() == leftWidth
+                && editor.getWidth() == rightWidth, "window resizing did not allocate space to the preview");
+        ProfileImportTest.check(leftSplit.getMinimumDividerLocation() >= profiles.getMinimumSize().width,
+                "profile divider permits an unusably narrow sidebar");
+        ProfileImportTest.check(rightSplit.getWidth() - rightSplit.getMaximumDividerLocation()
+                - rightSplit.getDividerSize() >= editor.getMinimumSize().width,
+                "editor divider permits an unusably narrow sidebar");
+        gui.setSize(gui.getMinimumSize().width, 720);
+        layout(gui);
+        ProfileImportTest.check(profiles.getWidth() >= profiles.getMinimumSize().width
+                && editor.getWidth() >= editor.getMinimumSize().width, "small window squeezed sidebar controls");
+        for (Container sidebar : java.util.List.of(profiles, editor)) checkControlsFit(sidebar);
+    }
+
     static void checkTheatre(G13 gui, Path output) throws Exception {
         ImageMap map = find(gui, ImageMap.class);
         ProfileSidebar profiles = find(gui, ProfileSidebar.class);
@@ -121,8 +177,16 @@ public class ProfileGuiTest {
         for (Dimension size : java.util.List.of(new Dimension(1920, 1080), new Dimension(1100, 720), new Dimension(1200, 1600))) {
             gui.setSize(size);
             layout(gui);
-            ProfileImportTest.check(theatre.isVisible() && theatre.getBounds().width > 0,
-                    "theatre exit control disappeared");
+            ProfileImportTest.check(!theatre.isVisible() && left.isVisible() && right.isVisible(),
+                    "theatre button must hide while sidebar handles remain visible");
+            Point leftHandle = SwingUtilities.convertPoint(left, 0, 0, gui);
+            Point rightHandle = SwingUtilities.convertPoint(right, 0, 0, gui);
+            Point imageOrigin = SwingUtilities.convertPoint(map, 0, 0, gui);
+            ProfileImportTest.check(leftHandle.x < imageOrigin.x
+                    && rightHandle.x >= imageOrigin.x + map.getWidth(), "sidebar handles are not docked to preview edges");
+            ProfileImportTest.check(map.imagePointToComponent(0, 203).x >= 0
+                    && map.imagePointToComponent(ImageMap.G13_KEYPAD.getIconWidth(), 203).x <= map.getWidth(),
+                    "focused view clips the chassis width");
             for (Key key : Key.getAllMasks()) {
                 Rectangle bounds = key.getShape().getBounds();
                 Point topLeft = map.imagePointToComponent(bounds.x, bounds.y);
@@ -136,20 +200,21 @@ public class ProfileGuiTest {
         }
         gui.setSize(1920, 1080);
         render(gui, output);
-        theatre.doClick();
-        ProfileImportTest.check(profiles.isVisible() && editor.isVisible(), "theatre did not restore sidebars");
         left.doClick();
-        ProfileImportTest.check(!profiles.isVisible() && editor.isVisible(), "profiles cannot be hidden independently");
-        theatre.doClick();
-        theatre.doClick();
-        ProfileImportTest.check(!profiles.isVisible() && editor.isVisible(), "theatre lost the previous sidebar arrangement");
+        ProfileImportTest.check(profiles.isVisible() && !editor.isVisible() && theatre.isVisible(),
+                "left chevron did not reopen profiles and restore the theatre button");
+        ProfileImportTest.check("Hide profiles sidebar".equals(left.getToolTipText())
+                && "Show editor sidebar".equals(right.getToolTipText()), "sidebar actions do not match visibility");
         right.doClick();
-        ProfileImportTest.check(theatre.isSelected(), "hiding both sidebars did not focus keys");
+        ProfileImportTest.check(profiles.isVisible() && editor.isVisible(), "right chevron did not reopen editor");
         left.doClick();
-        ProfileImportTest.check(profiles.isVisible() && !editor.isVisible() && !theatre.isSelected(),
-                "profiles cannot be restored independently from theatre");
         right.doClick();
-        ProfileImportTest.check(profiles.isVisible() && editor.isVisible(), "editor cannot be restored independently");
+        ProfileImportTest.check(theatre.isSelected() && !theatre.isVisible(), "hiding both sidebars did not enter theatre");
+        right.doClick();
+        ProfileImportTest.check(!profiles.isVisible() && editor.isVisible() && !theatre.isSelected(),
+                "editor cannot be restored independently from theatre");
+        left.doClick();
+
     }
 
     public static void main(String[] args) throws Exception {
@@ -312,6 +377,7 @@ public class ProfileGuiTest {
                 Path darkPath = Path.of(args[0]).resolveSibling("g13-ui-dark.png");
                 BufferedImage dark = render(gui, darkPath);
                 ProfileImportTest.check(light.getRGB(1, 1) != dark.getRGB(1, 1), "dark mode did not change the application surface");
+                checkSidebarResize(gui);
                 checkTheatre(gui, Path.of(args[0]).resolveSibling("g13-theatre-dark.png"));
                 UiTheme.apply(false);
                 SwingUtilities.updateComponentTreeUI(gui);
