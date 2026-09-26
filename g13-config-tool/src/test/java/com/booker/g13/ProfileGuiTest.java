@@ -70,6 +70,13 @@ public class ProfileGuiTest {
         SwingUtilities.invokeAndWait(() -> {
             try {
                 UiTheme.apply(false);
+                Properties validState = new Properties();
+                validState.setProperty("profile", "default");
+                validState.setProperty("layout", "2");
+                ProfileImportTest.check(DriverState.parse(validState).orElseThrow().layout() == 2,
+                        "valid driver layout state was not accepted");
+                validState.setProperty("layout", "7");
+                ProfileImportTest.check(DriverState.parse(validState).isEmpty(), "invalid driver layout state was accepted");
                 // Initialize the legacy files as a real first launch would.
                 new G13();
                 byte[] legacy = Files.readAllBytes(Configs.getRootDir().resolve("bindings-0.properties"));

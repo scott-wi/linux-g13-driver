@@ -40,6 +40,8 @@ public class G13 extends JPanel {
 	private final KeybindPanel keybindPanel = new KeybindPanel(); // Panel for editing key bindings.
 	private final MacroEditorPanel macroEditorPanel = new MacroEditorPanel(); // Panel for editing macros.
 	private final JComboBox<String> layoutSelector = new JComboBox<>(new String[]{"M1", "M2", "M3"});
+	private final JLabel activeLayout = new JLabel("Device: checking…");
+	private final Timer stateTimer = new Timer(500, event -> refreshDriverState());
 	private boolean changingLayout;
 	
 	private final ProfileStore profileStore = new ProfileStore(Configs.getRootDir());
@@ -109,6 +111,8 @@ public class G13 extends JPanel {
 		JPanel layoutBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
 		layoutBar.add(new JLabel("Editing layout"));
 		layoutBar.add(layoutSelector);
+		activeLayout.setToolTipText("The M layout currently selected on the physical G13");
+		layoutBar.add(activeLayout);
 		layoutSelector.addActionListener(event -> {
 			if (!changingLayout) mapBindings(layoutSelector.getSelectedIndex());
 		});
@@ -126,6 +130,28 @@ public class G13 extends JPanel {
 		keybindPanel.setMacros(macros);
 		macroEditorPanel.setMacros(macros);
 		profileSidebar.refresh(editingProfile);
+	}
+
+	@Override public void addNotify() {
+		super.addNotify();
+		refreshDriverState();
+		stateTimer.start();
+	}
+
+	@Override public void removeNotify() {
+		stateTimer.stop();
+		super.removeNotify();
+	}
+
+	private void refreshDriverState() {
+		var state = DriverState.read();
+		if (state.isEmpty()) {
+			activeLayout.setText("Device: unavailable");
+			return;
+		}
+		var snapshot = state.get();
+		String profile = snapshot.profileId().equals(editingProfile.id()) ? "active" : "another profile";
+		activeLayout.setText("Device: M" + (snapshot.layout() + 1) + " · " + profile);
 	}
 
     private void selectProfile(ProfileStore.Profile profile) {

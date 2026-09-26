@@ -15,6 +15,8 @@ public:
     /** Resolve persistent, running-application, and default profile rules. */
     static std::string getSelectedProfileId();
     static std::string getActiveProfileDir();
+    /** Runtime status shared with the configuration UI. */
+    static std::string getStatePath();
     /**
      * @brief Gets the full path to a specific binding configuration file.
      * @param bindingId The ID of the binding profile (e.g., 0, 1, 2).

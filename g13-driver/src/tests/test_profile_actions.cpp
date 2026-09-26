@@ -33,6 +33,7 @@ static bool contains(int code, int value) {
 int main(int argc, char** argv) {
     assert(argc == 2);
     setenv("XDG_CONFIG_HOME", argv[1], 1);
+    setenv("XDG_RUNTIME_DIR", argv[1], 1);
     std::string root = std::string(argv[1]) + "/g13";
     std::string proc = std::string(argv[1]) + "/proc";
     setenv("G13_PROC_ROOT", proc.c_str(), 1);
@@ -88,14 +89,33 @@ int main(int argc, char** argv) {
         G13 device(nullptr);
         std::ofstream(dir + "/bindings-0.properties") << "format=2\nG0=p,k.31\nG30=b,1\n";
         device.loadBindings();
+        assert(std::filesystem::exists(std::string(argv[1]) + "/g13-state.properties"));
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("profile=" + id) != std::string::npos && contents.find("layout=0") != std::string::npos);
+        }
         device.actions[0]->set(1);
         assert(contains(31, 1));
         unsigned char report[5] = {};
         report[G13_KEY_M2 / 8] = 1 << (G13_KEY_M2 % 8);
         device.parse_key(G13_KEY_M2, report);
         assert(device.bindings == 1);
+        {
+            std::ifstream state(std::string(argv[1]) + "/g13-state.properties");
+            std::string contents((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+            assert(contents.find("layout=1") != std::string::npos);
+        }
         assert(contains(31, 0));
         unsigned char released[5] = {};
+        device.parse_key(G13_KEY_M2, released);
+        unsigned char m1[5] = {};
+        m1[G13_KEY_M3 / 8] = 1 << (G13_KEY_M3 % 8); // USB bit 31 is the physical M1 button.
+        device.parse_key(G13_KEY_M1, m1);
+        assert(device.bindings == 0);
+        device.parse_key(G13_KEY_M1, released);
+        device.parse_key(G13_KEY_M2, report);
+        assert(device.bindings == 1);
         device.parse_key(G13_KEY_M2, released);
         {
             std::lock_guard<std::mutex> lock(eventsMutex);

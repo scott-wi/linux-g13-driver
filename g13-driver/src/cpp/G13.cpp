@@ -135,6 +135,18 @@ void G13::check_for_config_update() {
     }
 }
 
+void G13::publish_state() {
+    const std::string path = ConfigPath::getStatePath();
+    const std::string temporary = path + ".tmp." + std::to_string(getpid());
+    std::ofstream state(temporary, std::ios::trunc);
+    if (!state.is_open()) return;
+    state << "profile=" << ConfigPath::getSelectedProfileId() << '\n'
+          << "layout=" << bindings << '\n';
+    state.close();
+    chmod(temporary.c_str(), 0600);
+    if (rename(temporary.c_str(), path.c_str()) != 0) unlink(temporary.c_str());
+}
+
 std::unique_ptr<Macro> G13::loadMacro(int num) {
     // NEW: Use ConfigPath helper
     std::string filename = profile_directory + "/macro-" + std::to_string(num) + ".properties";
@@ -339,6 +351,7 @@ G20=p,k.50
         parse_bindings_from_stream(file);
         file.close();
     }
+    publish_state();
 }
 
 void G13::setColor(int red, int green, int blue) {
@@ -416,8 +429,14 @@ void G13::parse_key(int key, unsigned char *byte) {
     // (Existing implementation)
     if (key < 0 || key >= G13_NUM_KEYS) return;
 
-    unsigned char actual_byte = byte[key / 8];
-    unsigned char mask = 1 << (key % 8);
+    // The configuration/UI use M1, M2, M3 in left-to-right order (29-31),
+    // while the G13 USB report stores those three bits in the opposite order.
+    // Keep the logical key numbers stable and translate only the report offset.
+    int report_key = key;
+    if (key == G13_KEY_M1) report_key = G13_KEY_M3;
+    else if (key == G13_KEY_M3) report_key = G13_KEY_M1;
+    unsigned char actual_byte = byte[report_key / 8];
+    unsigned char mask = 1 << (report_key % 8);
     int pressed = actual_byte & mask;
 
     switch (key) {

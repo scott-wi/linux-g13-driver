@@ -186,3 +186,9 @@ std::string ConfigPath::getActiveProfileDir() {
     std::string directory = profile_directory(root, selected);
     return directory.empty() ? root : directory;
 }
+
+std::string ConfigPath::getStatePath() {
+    const char* runtime = getenv("XDG_RUNTIME_DIR");
+    if (runtime && *runtime) return std::string(runtime) + "/g13-state.properties";
+    return getConfigDir() + "/driver-state.properties";
+}
