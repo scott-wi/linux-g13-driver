@@ -505,17 +505,31 @@ public class ProfileGuiTest {
                 ProfileImportTest.check("b,2".equals(Configs.loadBindings(0).getProperty("G0")), "arbitrary button layout switch not saved");
                 ProfileImportTest.check(button(sidebar, "New…") != null && button(sidebar, "Import…") != null,
                         "new and import actions are not below the profile list");
-                ProfileImportTest.check(checkbox(sidebar, "Persistent profile") == null,
-                        "persistent control still appears in profile details");
+                JCheckBox persistentDetails = checkbox(sidebar, "Persistent profile");
+                ProfileImportTest.check(persistentDetails != null,
+                        "persistent profile control is missing from profile details");
                 JComboBox<?> editorLayout = layoutBox(gui);
                 editorLayout.setSelectedIndex(2);
                 checkProfileMenuClicks(sidebar);
                 JPopupMenu profileMenu = sidebar.profileMenu(saved);
                 menuItem(profileMenu, "Set Default").doClick();
                 ProfileImportTest.check(store.defaultProfile().id().equals(saved.id()), "default button failed");
+                persistentDetails.doClick();
+                ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()),
+                        "persistent profile details control failed to enable persistence");
+                ProfileImportTest.check(((JCheckBoxMenuItem) menuItem(sidebar.profileMenu(saved), "Set Persistent")).isSelected(),
+                        "persistent menu did not reflect the details control");
+                persistentDetails.doClick();
+                ProfileImportTest.check(store.persistentProfile().isEmpty(),
+                        "persistent profile details control failed to disable persistence");
                 JCheckBoxMenuItem persistence = (JCheckBoxMenuItem) menuItem(sidebar.profileMenu(saved), "Set Persistent");
                 persistence.doClick();
                 ProfileImportTest.check(store.persistentProfile().orElseThrow().id().equals(saved.id()), "persistent toggle failed");
+                ProfileImportTest.check(persistentDetails.isSelected(),
+                        "profile details did not reflect the persistent menu");
+                persistence.doClick();
+                ProfileImportTest.check(store.persistentProfile().isEmpty() && !persistentDetails.isSelected(),
+                        "persistent menu failed to disable persistence or update profile details");
                 ProfileImportTest.check(editorLayout.getSelectedIndex() == 2,
                         "persistent profile selection unexpectedly reset the editing layout");
                 ProfileImportTest.check(menuItem(sidebar.profileMenu(store.find("default")), "Delete").isEnabled() == false,

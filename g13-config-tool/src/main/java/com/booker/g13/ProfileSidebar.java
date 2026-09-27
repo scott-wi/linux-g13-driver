@@ -30,6 +30,7 @@ public final class ProfileSidebar extends JPanel {
     };
     private final JTextField profileName = new JTextField();
     private final JTextField application = new JTextField();
+    private final JCheckBox persistent = new JCheckBox("Persistent profile");
     private final JCheckBox darkMode = new JCheckBox("Dark mode", UiTheme.isDark());
     private final Map<Path, ImageIcon> icons = new HashMap<>();
     private boolean refreshing;
@@ -96,6 +97,10 @@ public final class ProfileSidebar extends JPanel {
         row.insets = new Insets(0, 0, 10, 0);
         details.add(application, row);
 
+        row.gridy++;
+        row.insets = new Insets(0, 0, 10, 0);
+        details.add(persistent, row);
+
         JPanel editButtons = new JPanel(new GridLayout(1, 2, 8, 0));
         JButton save = new JButton("Save details");
         JButton chooseIcon = new JButton("Choose icon…");
@@ -108,6 +113,10 @@ public final class ProfileSidebar extends JPanel {
 
         save.addActionListener(event -> updateSelected(null));
         chooseIcon.addActionListener(event -> chooseIcon());
+        persistent.addActionListener(event -> {
+            ProfileStore.Profile selected = list.getSelectedValue();
+            if (selected != null) setPersistent(selected, persistent.isSelected());
+        });
         darkMode.addActionListener(event -> listener.themeChanged(darkMode.isSelected()));
         newButton.addActionListener(event -> createProfile());
         importButton.addActionListener(event -> listener.importRequested());
@@ -142,7 +151,8 @@ public final class ProfileSidebar extends JPanel {
         try {
             // Resolve selection metadata here so configuration errors are still surfaced promptly.
             store.defaultProfile();
-            store.persistentProfile();
+            persistent.setSelected(store.persistentProfile()
+                    .map(candidate -> candidate.id().equals(profile.id())).orElse(false));
         } catch (IOException error) { listener.error(error); }
     }
 
