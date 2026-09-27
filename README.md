@@ -1,6 +1,9 @@
 # G13 Linux Driver & GUI (Modernized Fork)
 
-This is a modernized fork of the G13 driver for Linux.
+This is a modernized fork of the G13 driver for Linux. 
+
+Forked from: https://github.com/Lordbooker/linux-g13-driver - Massive thanks to the original maintainer for building a solid foundation to work from.
+
 The original project is over 10 years old. This fork has been refactored to use modern C++ standards for the driver and modern Java standards (Java 17 with Maven) for the configuration GUI.
 
 For a short code and behavior overview, see [How the G13 app works](docs/architecture.md). Development instructions are in [AGENTS.md](AGENTS.md).
