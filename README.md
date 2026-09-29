@@ -1,8 +1,8 @@
 # G13 Linux Driver & GUI (Modernized Fork)
 
-This is a modernized fork of the G13 driver for Linux. 
+This is a modernized fork of the G13 driver for Linux.
 
-Forked from: https://github.com/Lordbooker/linux-g13-driver - Massive thanks to the original maintainer for building a solid foundation to work from.
+Forked from [Lordbooker/linux-g13-driver](https://github.com/Lordbooker/linux-g13-driver). Thanks to the original maintainer for building the foundation.
 
 The original project is over 10 years old. This fork has been refactored to use modern C++ standards for the driver and modern Java standards (Java 17 with Maven) for the configuration GUI.
 
@@ -10,9 +10,9 @@ For a short code and behavior overview, see [How the G13 app works](docs/archite
 
 ## Features
 
-* **Modern C++ Driver:** The core driver has been updated for better performance and compatibility.
-* **Java GUI:** The configuration utility is built with Java 17 and Maven, ensuring it runs on modern systems.
-* **Flexible Configuration:** Offers multiple ways to configure your G13: via the user-friendly GUI, manual file editing, or using the driver's fixed mapping with external tools.
+* **C++17 driver:** Keyboard, mouse-button, media/system-key, and analog joystick output, with RGB backlighting and a scriptable LCD.
+* **Java 17 GUI:** Named profiles, three editable layouts, recorded and text macros, light/dark appearance, and a resizable keypad preview with live physical-input highlighting.
+* **Profile selection:** Match running Linux applications, choose a default fallback, or pin a persistent profile. Import individual Logitech Gaming Software XML profiles.
 
 ## Requirements
 
@@ -20,17 +20,15 @@ For a short code and behavior overview, see [How the G13 app works](docs/archite
 
 You need to install the following packages via your package manager:
 
-* `make`
-* `cmake`
-* `gtk3` / `gtk3-devel`
-* `libusb-1.0-0` (on some distros named `libusb-1.0-0-dev` or `libusb1-devel`)
-* `libappindicator-gtk3` (or similar)
-* `Java 17` or higher and `maven`
+* A C++17 compiler, `make`, `cmake`, and `pkg-config`
+* GTK3, libusb-1.0, and AppIndicator3 development packages (names vary by distribution)
+* A Java 17+ JDK with desktop/AWT support and `maven`
+* `curl` and `jq` for the preview installer and its tests
 * Optional: `python-psutil` (only for the existing LCD monitor example)
 
 ### Automated Dependency Installation
 
-Alternatively, all needed dependencies can be installed via the `install_deps.sh` script located in the scripts folder.
+Install build dependencies using the helper at `g13-driver/src/scripts/install_deps.sh`, invoked from the repository root:
 
 ```bash
 make dependencies
@@ -38,7 +36,7 @@ make dependencies
 
 ## Fedora preview installation
 
-Install or upgrade a prebuilt preview with the [copy/paste instructions](docs/previews.md). Initially supports DNF-managed Fedora 44 x86_64. The installer checks dependencies, verifies the archive, deploys a managed release, and restarts the user service while preserving configuration. Private repository downloads require GitHub authentication.
+Install or upgrade a prebuilt preview with the [copy/paste instructions](docs/previews.md). The downloader supports DNF-managed Fedora 44 x86_64. It checks dependencies, verifies the archive, deploys a managed release, and restarts the user service while preserving configuration. This repository is public; authentication is optional for public downloads.
 
 ## Build & Installation
 
@@ -47,7 +45,7 @@ Build a versioned release locally, then deploy that release:
 ```bash
 make dependencies    # Optional: install build dependencies (uses sudo)
 make all             # Build and package into dist/; no installation
-make test            # Isolated deployment tests
+make test            # Deployment, downloader, Java GUI/import, and native action tests
 make install-user    # Install the built release for this user
 # OR: sudo make install  # Install it system-wide
 ```
@@ -72,8 +70,6 @@ See [Release deployment](docs/releases.md) for installed paths, platform require
 one-time device permissions, legacy migration, updates, rollback, and staged installs.
 
 ## How to use the Driver and GUI
-
-### Run the driver
 
 ### Controlling the Driver
 The driver runs in the background via Systemd.
@@ -107,21 +103,31 @@ Alternatively, run it from the terminal:
 g13-gui
 ```
 
-This will bring up the UI.
+The GUI can also edit configuration while the driver is stopped.
 
-Button layouts: Use the M1–M3 selector above the keypad to edit three layouts. Layout-switch actions default to the physical M1–M3 buttons, but can be assigned to any G13 control. The M buttons and MR can also be remapped as ordinary buttons.
+![Current light-mode configuration tool with a sample profile and text macro](docs/ConfigTool.png)
 
-Save: Changes are saved automatically to `~/.config/g13/bindings-*.properties`.
+Profiles: Select a row to edit that profile. **New…** and **Import…** are below the list; the row's three-dot menu offers **Set Default**, **Set Persistent**, and deletion. **Persistent profile** is also available in profile details. Save name and executable changes with **Save details**. Running-process matching is not foreground-window detection; selecting a row alone does not activate that profile on the device.
 
-Live Reload: The driver automatically detects file changes and reloads the config immediately.
+Button layouts: Use **Editing layout** to edit M1–M3. Any control can switch layouts, including the physical M buttons, which can also be remapped as ordinary inputs. Physical layout changes update the preview even while another application has focus. Held controls briefly highlight yellow. **Device** reports the driver's last published layout and whether it belongs to the editing profile; it is not a service-health or activation acknowledgement.
 
-![Config Tool Screenshot](docs/ConfigTool.png)
+Bindings: Click a keypad control, then choose Pass through, Macro, or Switch layout. **Choose…** includes keyboard, mouse-button, media, and system inputs. **Joystick mode** selects mapped direction keys or analog axes for the layout. Imported modifier chords are displayed but do not yet have an editor.
 
-> **Note:** The driver watches the active binding file, but macro-only changes and some rapid edits may require switching banks or restarting. See [the architecture guide](docs/architecture.md) for the current reload limitations.
+Saving: Binding, color, and joystick changes save automatically. Press Enter to save a macro name; use **Save text** for text-macro content and delay. Configuration lives in `$XDG_CONFIG_HOME/g13` (normally `~/.config/g13`); named profiles have their own `profiles/<UUID>/` directories.
+
+Reloading: The driver watches the active layout's binding file. Macro-only edits do not trigger a reload: switch to another layout and back, change active profiles, or restart the service. See [the architecture guide](docs/architecture.md).
+
+Appearance: Use **Dark mode** in the profiles sidebar. Drag dividers to resize sidebars, use edge chevrons to hide/show them, or choose the expand icon for theatre view. Double-click the preview to reopen the editor.
+
+![Current dark-mode configuration tool](docs/ConfigTool-dark.png)
+
+![Theatre view with both sidebars hidden](docs/ConfigTool-theatre.png)
+
+These images use synthetic sample configuration. [Regenerate the screenshots](docs/screenshots/README.md) from current sources without accessing your device or settings.
 
 ### Use the built-in Mapping Set (for external tools)
 
-The driver now includes a fixed default mapping. This means the GUI is not strictly necessary if you prefer other tools. You can map the keys using software like **Input Remapper**.
+The driver creates default binding files when they are missing. You can edit these directly or remap the virtual inputs with external tools; the GUI is optional. Driver-created and GUI-created legacy defaults differ, so inspect your actual files before relying on a particular mapping.
 
 Binding files can assign `b,0`, `b,1`, or `b,2` to any control to switch layouts. Physical M1–M3 use these actions by default. Selecting a layout in the GUI only chooses the layout being edited.
 
@@ -129,10 +135,12 @@ Binding files can assign `b,0`, `b,1`, or `b,2` to any control to switch layouts
 
 If you don't want to use the GUI App, you can edit the files manually in `~/.config/g13/`.
 
-* **Usage Example:** To map the **G20** key to the letter **T**, find the event code for T (which is 20). Then, in your `bindings-0.properties` file, add or edit the line:
+* **Usage Example:** To map the printed **G20** key to **T** (Linux keycode 20), edit `bindings-0.properties` in the relevant profile directory:
     ```ini
-    G20=p,k.20
+    G19=p,k.20
     ```
+
+Internal G-key indices are zero-based: printed G1 is `G0`, and printed G20 is `G19`. See [keycodes and button labels](docs/keycodes.md) for more mappings. [Configuration formats](docs/architecture.md#named-profiles-and-configuration) cover layout switches, chords, macros, and analog mode.
 
 ### Using the Display (scripting)
 
@@ -140,20 +148,20 @@ You can write text to the display using a simple pipe command:
 
 The driver creates a Named Pipe (FIFO) to receive text for the LCD.
 
-Location: `/run/user/$UID/g13-lcd` (Check `/tmp/g13-lcd` as fallback if `/run` is unavailable).
+Location: `$XDG_RUNTIME_DIR/g13-lcd` (normally `/run/user/$UID/g13-lcd`), or `/tmp/g13-lcd` when `XDG_RUNTIME_DIR` is unset.
 
 ```bash
-# Find your pipe path (usually based on your user ID, e.g., 1000)
-PIPE="/run/user/$(id -u)/g13-lcd"
+# Run while the driver is connected and reading the pipe.
+PIPE="${XDG_RUNTIME_DIR:-/tmp}/g13-lcd"
 
 # Send simple text
-echo "Hello World!" > $PIPE
+printf 'Hello World!\n' > "$PIPE"
 
 # Send multi-line text (CPU/RAM stats)
-echo -e "CPU: 50%\nRAM: 4GB" > $PIPE
+printf 'CPU: 50%%\nRAM: 4GB\n' > "$PIPE"
 ```
 
-Currently, only one font size is implemented. There is an example script for system monitoring in the `scripts` folder. Feel free to try it out, modify it, or share your own scripts!
+Only one font size is implemented. The optional monitor example is `g13-driver/src/scripts/g13_monitor.py` and requires Python with psutil. Writing to a FIFO waits until a reader is available.
 
 
 ### Release status and rollback
@@ -167,12 +175,10 @@ See [Release deployment](docs/releases.md) for the system-wide equivalents.
 
 ## Notes
 
-* Tested on 64-bit Arch Linux.
+* The preview pipeline targets Fedora 44 x86_64. Broader install/upgrade validation remains open for [Debian/Ubuntu](https://github.com/scott-wi/linux-g13-driver/issues/3), [Arch](https://github.com/scott-wi/linux-g13-driver/issues/4), and [openSUSE](https://github.com/scott-wi/linux-g13-driver/issues/5). Automated tests use mocked hardware.
 
 ### Windows profile import
 
-The GUI can import one Logitech Gaming Software XML export at a time into a separate named profile. Profiles appear with their icons in a list on the left. Add a Linux executable name for automatic selection, designate one fallback profile as Default, or mark one Persistent to suspend automatic changes. The interface includes a persistent light/dark appearance setting, and the interactive keypad scales with the window while keeping its hit regions aligned. Existing configuration remains available as **Default (existing bindings)**. See [the import guide](docs/profile-import.md) for supported mappings, testing, and limitations.
+Import one Logitech Gaming Software XML export at a time into a separate named profile. Supported assignments include keys, held modifier chords, balanced key macros, US-keyboard text blocks, M1–M3 layout switches, and analog joystick actions. Existing root-level configuration remains available as **Default (existing bindings)**.
 
-Profile names are editable. Use each row's three-dot menu to set its selection policy or delete a named profile; **New…** and **Import…** sit below the profile list. Each profile has three button layouts, M1–M3. A layout-switch action can be assigned to any G13 control, including the physical M keys; those keys can instead send an ordinary keyboard, mouse, media, or system input. Existing installations migrate the former fixed M1–M3 behavior to explicit layout-switch assignments when opened in the updated GUI.
-
-Windows imports support Logitech text blocks as editable Text macros, M1–M3 function actions as layout switches, and joystick actions as a per-layout analog joystick mode. Text macros type printable US-keyboard characters, tabs, and Enter, with an editable delay between characters.
+Folder import, Logitech mouse-action conversion, toggle repeat, a chord editor, and Lua execution remain unimplemented. See [the import guide](docs/profile-import.md) for exact support and [the issue audit](docs/issue-audit.md) for remaining work.

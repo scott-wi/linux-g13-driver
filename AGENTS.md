@@ -2,8 +2,8 @@
 
 ## Workspace and scope
 
-- Develop in `/home/scott/src/linux-g13-driver-worktree` (currently `codex/fedora-preview-releases`). The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
-- Fetch and push only the private `scott-wi/linux-g13-driver` origin repository; do not use upstream.
+- Develop in an isolated worktree based on the current `origin/main`; reuse an available worktree when its changes and ownership are accounted for. The main checkout at `/home/scott/src/linux-g13-driver` supports the user's installed driver; preserve it and its pending changes.
+- Fetch and push only the `scott-wi/linux-g13-driver` origin repository; do not use upstream. The repository is public; do not commit personal profile exports.
 - The user owns a G13. Building is authorized; installing, restarting the live service, or taking control of the device requires an explicit request for that action.
 - Named profiles, icons, running-application matching, default/persistent selection, and single Logitech XML import are implemented. Folder import and further graphical UI changes remain planned. See [docs/profile-import.md](docs/profile-import.md).
 - Read [docs/architecture.md](docs/architecture.md) for the current behavior and extension points.
