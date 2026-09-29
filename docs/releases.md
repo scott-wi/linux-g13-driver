@@ -16,7 +16,7 @@ From the repository root (or `g13-driver/src`):
 ```sh
 make dependencies    # Optional: explicitly install build dependencies with sudo
 make all             # Build driver + GUI, assemble release, create archive
-make test            # Temporary-directory deployment tests; no device access
+make test            # Deployment, downloader, GUI/import, and mocked native tests
 ```
 
 Normal builds omit per-event input logging. For a diagnostic release, build with
@@ -82,9 +82,13 @@ release's GUI on PATH, so tray launches use the matching GUI.
 | Device rules | `/etc/udev/rules.d/99-g13.rules` | Same system rule, installed separately |
 | Bindings/macros | Existing per-user configuration | Existing per-user configuration |
 
-The same local-administrator/XDG layout works across the supported distro
+The installer uses the same local-administrator/XDG layout across distro
 families (Fedora, Debian/Ubuntu, Arch, openSUSE); distro differences affect package
 dependencies and binary compatibility, not arbitrary application folder names.
+Debian/Ubuntu, Arch, and openSUSE fresh-install/upgrade validation remains open
+in issues [#3](https://github.com/scott-wi/linux-g13-driver/issues/3),
+[#4](https://github.com/scott-wi/linux-g13-driver/issues/4), and
+[#5](https://github.com/scott-wi/linux-g13-driver/issues/5).
 These are standalone local releases, not distro-owned RPM/DEB packages. See the
 [Filesystem Hierarchy Standard](https://www.debian.org/doc/packaging-manuals/fhs/fhs-3.0.html)
 and [systemd unit search paths](https://github.com/systemd/systemd/blob/main/man/systemd.unit.xml).
@@ -136,7 +140,10 @@ restarted. If activation fails, the newly selected release remains installed;
 inspect `journalctl --user -u g13` or roll back. Registration and activation are not
 a full filesystem transaction, and deployment does not perform hardware health checks.
 Checksums detect accidental payload changes; they are not publisher signatures.
-Old releases are retained; no automatic pruning or network update downloader is included.
+Old releases are retained; there is no automatic pruning or background update check.
+The separate root-level [preview downloader](previews.md) downloads and deploys
+published Fedora previews when invoked; the extracted release installer itself
+works locally.
 
 ## Staging and cleanup
 

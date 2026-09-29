@@ -1,12 +1,29 @@
 # Fedora previews
 
-The `Fedora preview` GitHub Action builds the driver and GUI in Fedora 44, runs the tests, and verifies the packaged runtime in a second clean Fedora image without compilers or Maven. Pull requests produce downloadable workflow artifacts. Successful pushes to `main` publish a GitHub prerelease; manual runs can publish previews of other branches after this workflow has first been merged into the default branch.
+The `Fedora preview` GitHub Action builds the driver and GUI in Fedora 44, runs the tests, and verifies the packaged runtime in a second clean Fedora image without compilers or Maven. Pull requests produce downloadable workflow artifacts. Successful pushes to `main` publish a GitHub prerelease; manual runs can publish previews of other branches.
 
 Targets initially supported: **DNF-managed Fedora 44, x86_64**. Other Fedora versions, architectures, derivatives and Atomic/OSTree editions stop with an explanatory error. A build targeting the exact distro/version is required; this is not a universal Linux archive.
 
-## Install or upgrade (private repository)
+## Install or upgrade
 
-Run from your normal desktop terminal, close the G13 GUI, and use a GitHub token with **Contents: read** permission on `scott-wi/linux-g13-driver`. The following downloads the root installer fully before running it. It requires curl, which Fedora normally supplies; if missing, install it with `sudo dnf install curl`.
+The repository is public. Run from your normal desktop terminal and close the G13 GUI. This downloads the root installer fully before running it; no GitHub token is required. It requires curl; if missing, install it with `sudo dnf install curl`.
+
+```bash
+(
+  set -e
+  temp=$(mktemp)
+  trap 'rm -f -- "$temp"' EXIT
+  curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    'https://raw.githubusercontent.com/scott-wi/linux-g13-driver/main/install.sh' -o "$temp"
+  bash "$temp"
+)
+```
+
+At least one matching main preview must have finished publishing. Repeating the command upgrades to the newest published main preview; it does not rebuild source. Check [published previews](https://github.com/scott-wi/linux-g13-driver/releases) when diagnosing a missing release.
+
+### Optional authentication
+
+Authentication can help with GitHub API rate limits and is required for private forks. A token needs **Contents: read** permission. For the origin repository:
 
 ```bash
 (
@@ -25,7 +42,7 @@ Run from your normal desktop terminal, close the G13 GUI, and use a GitHub token
 )
 ```
 
-If GitHub CLI is already installed and authenticated, this shorter alternative uses that existing session; installing `gh` is not required:
+If GitHub CLI is already installed and authenticated, this alternative uses that existing session; installing `gh` is not required:
 
 ```bash
 (
@@ -34,21 +51,6 @@ If GitHub CLI is already installed and authenticated, this shorter alternative u
   trap 'rm -f -- "$temp"' EXIT
   gh api 'repos/scott-wi/linux-g13-driver/contents/install.sh?ref=main' \
     -H 'Accept: application/vnd.github.raw+json' > "$temp"
-  bash "$temp"
-)
-```
-
-Both commands require the workflow/installer to be merged and at least one matching main preview to have finished publishing. Repeating the command upgrades to the newest published main preview. It does not rebuild source. Repository visibility is unchanged.
-
-For a future public repository, the equivalent unauthenticated command is:
-
-```bash
-(
-  set -e
-  temp=$(mktemp)
-  trap 'rm -f -- "$temp"' EXIT
-  curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-    'https://raw.githubusercontent.com/scott-wi/linux-g13-driver/main/install.sh' -o "$temp"
   bash "$temp"
 )
 ```
