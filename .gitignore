@@ -85,3 +85,4 @@ experimental_stuff/
 /cmake-build-*/
 # Legacy release staging
 g13-driver/src/.stage/
+bin/
